@@ -536,6 +536,96 @@ export class EmployeeRepository {
       return deleted;
     });
   }
+
+  async getFormOptions() {
+    let [allDepartments, allPositions, allSchedules] = await Promise.all([
+      db.select().from(departments).where(eq(departments.isActive, true)),
+      db.select().from(jobPositions).where(eq(jobPositions.isActive, true)),
+      db.select().from(workingSchedules).where(eq(workingSchedules.isActive, true)),
+    ]);
+
+    // If database tables are empty, seed standard enterprise defaults
+    if (allDepartments.length === 0 || allPositions.length === 0 || allSchedules.length === 0) {
+      if (allDepartments.length === 0) {
+        allDepartments = await db
+          .insert(departments)
+          .values([
+            { code: 'ENG', name: 'Engineering' },
+            { code: 'HR', name: 'Human Resources' },
+            { code: 'FIN', name: 'Finance & Accounting' },
+            { code: 'MKT', name: 'Marketing & Growth' },
+            { code: 'OPS', name: 'Operations' },
+          ])
+          .returning();
+      }
+
+      if (allSchedules.length === 0) {
+        allSchedules = await db
+          .insert(workingSchedules)
+          .values([
+            { code: 'STD-40', name: 'Standard Full-Time (40h/week)', totalWeeklyHours: '40.00' },
+            { code: 'FLX-35', name: 'Flexible (35h/week)', totalWeeklyHours: '35.00' },
+            { code: 'PT-20', name: 'Part-Time (20h/week)', totalWeeklyHours: '20.00' },
+          ])
+          .returning();
+      }
+
+      if (allPositions.length === 0 && allDepartments.length > 0) {
+        const engDept = allDepartments.find((d) => d.code === 'ENG') || allDepartments[0];
+        const hrDept = allDepartments.find((d) => d.code === 'HR') || allDepartments[0];
+        const finDept = allDepartments.find((d) => d.code === 'FIN') || allDepartments[0];
+        const opsDept = allDepartments.find((d) => d.code === 'OPS') || allDepartments[0];
+
+        allPositions = await db
+          .insert(jobPositions)
+          .values([
+            { departmentId: engDept.id, code: 'SWE-SR', title: 'Senior Software Engineer' },
+            { departmentId: engDept.id, code: 'SWE-FE', title: 'Frontend Developer' },
+            { departmentId: engDept.id, code: 'SWE-BE', title: 'Backend Developer' },
+            { departmentId: hrDept.id, code: 'HR-MGR', title: 'HR Manager' },
+            { departmentId: hrDept.id, code: 'HR-SPEC', title: 'Talent Acquisition Specialist' },
+            { departmentId: finDept.id, code: 'FIN-ACC', title: 'Senior Accountant' },
+            { departmentId: opsDept.id, code: 'OPS-LEAD', title: 'Operations Lead' },
+          ])
+          .returning();
+      }
+    }
+
+    const rawManagers = await db
+      .select({
+        id: employees.id,
+        employeeCode: employees.employeeCode,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        workEmail: employees.workEmail,
+      })
+      .from(employees)
+      .where(or(eq(employees.status, 'ACTIVE'), eq(employees.status, 'PROBATION')))
+      .orderBy(asc(employees.firstName));
+
+    return {
+      departments: allDepartments.map((d) => ({ id: d.id, name: d.name, code: d.code })),
+      jobPositions: allPositions.map((p) => ({
+        id: p.id,
+        title: p.title,
+        code: p.code,
+        departmentId: p.departmentId,
+      })),
+      workingSchedules: allSchedules.map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+        totalWeeklyHours: s.totalWeeklyHours,
+      })),
+      managers: rawManagers.map((m) => ({
+        id: m.id,
+        fullName: `${m.firstName} ${m.lastName}`,
+        employeeCode: m.employeeCode,
+        workEmail: m.workEmail,
+      })),
+    };
+  }
 }
 
 export const employeeRepository = new EmployeeRepository();
+

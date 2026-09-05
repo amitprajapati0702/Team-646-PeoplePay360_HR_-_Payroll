@@ -1,8 +1,6 @@
 import type { Request, Response, NextFunction, Handler } from 'express';
-import type { ZodTypeAny, ZodError } from 'zod';
-import ApiError from '../utils/Apierror.js';
-import httpStatus from '../utils/http-status.js';
-import { ErrorCodes } from '../utils/error-codes.js';
+import type { ZodTypeAny } from 'zod';
+import asyncHandler from '../utils/asyncHandler.js';
 
 export interface RequestValidationSchema {
   body?: ZodTypeAny;
@@ -11,8 +9,8 @@ export interface RequestValidationSchema {
 }
 
 export const validateRequest = (schema: RequestValidationSchema): Handler => {
-  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
-    try {
+  return asyncHandler(
+    async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
       if (schema.params) {
         req.params = (await schema.params.parseAsync(req.params)) as Record<string, string>;
       }
@@ -23,25 +21,8 @@ export const validateRequest = (schema: RequestValidationSchema): Handler => {
         req.body = await schema.body.parseAsync(req.body);
       }
       next();
-    } catch (error) {
-      const zodError = error as ZodError;
-      const formattedErrors = zodError.issues
-        ? zodError.issues.map((issue) => ({
-            field: issue.path.join('.'),
-            message: issue.message,
-          }))
-        : error;
-
-      next(
-        new ApiError({
-          statuscode: httpStatus.BAD_REQUEST,
-          message: 'Validation failed for request parameters/body.',
-          errorcode: ErrorCodes.VALIDATION_ERROR,
-          details: formattedErrors,
-        })
-      );
     }
-  };
+  );
 };
 
 export default validateRequest;

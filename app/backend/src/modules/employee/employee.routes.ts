@@ -10,6 +10,7 @@ import {
 } from './employee.schema.js';
 import {
   listEmployees,
+  getFormOptions,
   getKanbanView,
   getEmployeeById,
   getReportingTree,
@@ -22,6 +23,7 @@ import {
 const router: Router = Router();
 
 router.get('/', validateRequest({ query: queryEmployeesQuerySchema }), listEmployees);
+router.get('/form-options', getFormOptions);
 router.get('/kanban', validateRequest({ query: kanbanQuerySchema }), getKanbanView);
 router.get('/:id', validateRequest({ params: employeeIdParamSchema }), getEmployeeById);
 router.get('/:id/hierarchy', validateRequest({ params: employeeIdParamSchema }), getReportingTree);

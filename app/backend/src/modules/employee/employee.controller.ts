@@ -11,13 +11,6 @@ import type {
   UpdateEmployeeStatusInput,
 } from './employee.schema.js';
 
-interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email?: string;
-    role?: string;
-  };
-}
 
 export const listEmployees: Handler = asyncHandler(
   async (req: Request, res: Response) => {
@@ -29,6 +22,19 @@ export const listEmployees: Handler = asyncHandler(
         message: 'Employees retrieved successfully.',
         data: result.items,
         meta: result.pagination,
+      })
+    );
+  }
+);
+
+export const getFormOptions: Handler = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const options = await employeeService.getFormOptions();
+
+    return res.status(httpStatus.OK).json(
+      new ApiResponse({
+        message: 'Employee form options retrieved successfully.',
+        data: options,
       })
     );
   }
@@ -79,7 +85,7 @@ export const getReportingTree: Handler = asyncHandler(
 export const createEmployee: Handler = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body as CreateEmployeeInput;
-    const actingUserId = (req as AuthenticatedRequest).user?.id;
+    const actingUserId = req.user?.id;
     const created = await employeeService.createEmployee(body, actingUserId);
 
     return res.status(httpStatus.CREATED).json(
@@ -95,7 +101,7 @@ export const updateEmployee: Handler = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
     const body = req.body as UpdateEmployeeInput;
-    const actingUserId = (req as AuthenticatedRequest).user?.id;
+    const actingUserId = req.user?.id;
     const updated = await employeeService.updateEmployee(id, body, actingUserId);
 
     return res.status(httpStatus.OK).json(
@@ -111,7 +117,7 @@ export const updateEmployeeStatus: Handler = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
     const body = req.body as UpdateEmployeeStatusInput;
-    const actingUserId = (req as AuthenticatedRequest).user?.id;
+    const actingUserId = req.user?.id;
     const updated = await employeeService.updateEmployeeStatus(id, body, actingUserId);
 
     return res.status(httpStatus.OK).json(
@@ -126,7 +132,7 @@ export const updateEmployeeStatus: Handler = asyncHandler(
 export const deleteEmployee: Handler = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const actingUserId = (req as AuthenticatedRequest).user?.id;
+    const actingUserId = req.user?.id;
     const deleted = await employeeService.deleteEmployee(id, actingUserId);
 
     return res.status(httpStatus.OK).json(

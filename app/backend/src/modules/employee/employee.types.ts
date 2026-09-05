@@ -91,3 +91,25 @@ export interface KanbanGroupItem {
     employmentType: string;
   }>;
 }
+
+export interface FormOptionsResponse {
+  departments: Array<{ id: string; name: string; code: string }>;
+  jobPositions: Array<{
+    id: string;
+    title: string;
+    code: string;
+    departmentId: string;
+  }>;
+  workingSchedules: Array<{
+    id: string;
+    name: string;
+    code: string;
+    totalWeeklyHours: string;
+  }>;
+  managers: Array<{
+    id: string;
+    fullName: string;
+    employeeCode: string;
+    workEmail: string;
+  }>;
+}

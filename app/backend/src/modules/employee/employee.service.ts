@@ -17,6 +17,10 @@ import type { EmployeeSmartView, KanbanGroupItem } from './employee.types.js';
 export class EmployeeService {
   constructor(private readonly repo: EmployeeRepository = employeeRepository) { }
 
+  async getFormOptions() {
+    return await this.repo.getFormOptions();
+  }
+
   async listEmployees(filters: QueryEmployeesInput) {
     return await this.repo.findMany(filters);
   }
