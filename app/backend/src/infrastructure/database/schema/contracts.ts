@@ -15,6 +15,10 @@ import { departments, jobPositions, workingSchedules } from './organization.js';
 import { salaryStructures } from './salary-structures.js';
 import { payslips } from './payroll.js';
 
+/**
+ * Contracts Table: Tracks employment contracts, base wage terms, validity date ranges,
+ * assigned salary structures, and active/historical status.
+ */
 export const contracts = pgTable(
   'contracts',
   {

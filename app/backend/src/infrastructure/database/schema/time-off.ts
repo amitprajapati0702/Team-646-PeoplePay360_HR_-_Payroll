@@ -14,6 +14,10 @@ import { timeOffUnitEnum, workflowStatusEnum } from './enums.js';
 import { employees } from './employees.js';
 import { users } from './users.js';
 
+/**
+ * Time Off Types Table: Configures leave policies (e.g., Sick, Paid, Casual, Unpaid),
+ * measurement units (Days/Hours), and payroll deduction integration.
+ */
 export const timeOffTypes = pgTable('time_off_types', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -36,6 +40,10 @@ export const timeOffTypesRelations = relations(timeOffTypes, ({ many }) => ({
   requests: many(timeOffRequests),
 }));
 
+/**
+ * Time Off Allocations Table: Tracks leave quota balances granted to employees,
+ * recorded usage (taken units), remaining units, and validity periods.
+ */
 export const timeOffAllocations = pgTable(
   'time_off_allocations',
   {
@@ -95,6 +103,10 @@ export const timeOffAllocationsRelations = relations(
   })
 );
 
+/**
+ * Time Off Requests Table: Stores employee leave applications, requested duration,
+ * reason, and approval/refusal management workflow.
+ */
 export const timeOffRequests = pgTable(
   'time_off_requests',
   {

@@ -3,6 +3,10 @@ import { relations, sql } from 'drizzle-orm';
 import { userRoleEnum } from './enums.js';
 import { employees } from './employees.js';
 
+/**
+ * Users Table: Stores system user credentials, authentication details,
+ * and high-level role-based access permissions (RBAC).
+ */
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),

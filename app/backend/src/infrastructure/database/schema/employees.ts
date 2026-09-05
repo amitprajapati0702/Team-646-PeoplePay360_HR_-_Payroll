@@ -16,6 +16,10 @@ import { attendances } from './attendance.js';
 import { timeOffAllocations, timeOffRequests } from './time-off.js';
 import { payslips } from './payroll.js';
 
+/**
+ * Employees Table: Serves as the central master record for all personnel,
+ * linking personal profiles, organizational hierarchy, work schedules, and bank details.
+ */
 export const employees = pgTable(
   'employees',
   {

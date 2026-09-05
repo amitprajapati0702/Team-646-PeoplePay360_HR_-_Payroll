@@ -14,6 +14,10 @@ import { attendanceStatusEnum } from './enums.js';
 import { employees } from './employees.js';
 import { users } from './users.js';
 
+/**
+ * Attendances Table: Records daily employee punch events (check-in / check-out),
+ * calculated working/overtime hours, status exceptions, and manual correction audits.
+ */
 export const attendances = pgTable(
   'attendances',
   {

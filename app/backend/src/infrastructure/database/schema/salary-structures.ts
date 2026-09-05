@@ -14,6 +14,10 @@ import { computationTypeEnum } from './enums.js';
 import { contracts } from './contracts.js';
 import { payruns, payslips, payslipLines } from './payroll.js';
 
+/**
+ * Salary Rule Categories Table: Groups salary components into structural classifications
+ * such as Basic, Allowances, Gross, Deductions, Company Contributions, and Net Salary.
+ */
 export const salaryRuleCategories = pgTable('salary_rule_categories', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -41,6 +45,10 @@ export const salaryRuleCategoriesRelations = relations(
   })
 );
 
+/**
+ * Salary Structures Table: Acts as containers for organized collections of salary rules
+ * assigned to employment contracts and payrun batches.
+ */
 export const salaryStructures = pgTable('salary_structures', {
   id: uuid('id').defaultRandom().primaryKey(),
   code: varchar('code', { length: 50 }).notNull().unique(),
@@ -71,6 +79,10 @@ export const salaryStructuresRelations = relations(salaryStructures, ({ one, man
   payslips: many(payslips),
 }));
 
+/**
+ * Salary Rules Table: Defines specific earnings, deductions, and tax calculation formulas,
+ * fixed amounts, or percentage rates with strict execution sequences.
+ */
 export const salaryRules = pgTable('salary_rules', {
   id: uuid('id').defaultRandom().primaryKey(),
   categoryId: uuid('category_id')
@@ -106,6 +118,10 @@ export const salaryRulesRelations = relations(salaryRules, ({ one, many }) => ({
   payslipLines: many(payslipLines),
 }));
 
+/**
+ * Salary Structure Rules Table: Junction table mapping which salary rules belong to
+ * which salary structure along with optional sequence overrides.
+ */
 export const salaryStructureRules = pgTable(
   'salary_structure_rules',
   {

@@ -10,6 +10,10 @@ import {
 import { relations, sql } from 'drizzle-orm';
 import { users } from './users.js';
 
+/**
+ * Audit Logs Table: Provides immutable compliance and activity tracking across the system,
+ * capturing mutation actions, acting users, and before/after JSONB state snapshots.
+ */
 export const auditLogs = pgTable(
   'audit_logs',
   {

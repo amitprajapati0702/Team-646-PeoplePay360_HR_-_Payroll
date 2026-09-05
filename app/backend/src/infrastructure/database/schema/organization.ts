@@ -14,6 +14,10 @@ import { relations, sql } from 'drizzle-orm';
 import { dayOfWeekEnum } from './enums.js';
 import { employees } from './employees.js';
 
+/**
+ * Departments Table: Stores organizational business units, hierarchy,
+ * and designated department managers.
+ */
 export const departments = pgTable('departments', {
   id: uuid('id').defaultRandom().primaryKey(),
   code: varchar('code', { length: 50 }).notNull().unique(),
@@ -45,6 +49,10 @@ export const departmentsRelations = relations(departments, ({ one, many }) => ({
   employees: many(employees, { relationName: 'departmentEmployees' }),
 }));
 
+/**
+ * Job Positions Table: Stores job titles, role descriptions,
+ * and department alignments across the organization.
+ */
 export const jobPositions = pgTable('job_positions', {
   id: uuid('id').defaultRandom().primaryKey(),
   departmentId: uuid('department_id')
@@ -70,6 +78,10 @@ export const jobPositionsRelations = relations(jobPositions, ({ one, many }) => 
   employees: many(employees),
 }));
 
+/**
+ * Working Schedules Table: Defines work schedule templates and total weekly standard
+ * expected hours for attendance and payroll calculations.
+ */
 export const workingSchedules = pgTable('working_schedules', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 150 }).notNull(),
@@ -92,6 +104,10 @@ export const workingSchedulesRelations = relations(workingSchedules, ({ many }) 
   employees: many(employees),
 }));
 
+/**
+ * Working Schedule Lines Table: Stores day-by-day shift hours, timings (work_from/work_to),
+ * and unpaid break durations for each working schedule.
+ */
 export const workingScheduleLines = pgTable(
   'working_schedule_lines',
   {

@@ -23,6 +23,10 @@ import {
   salaryRuleCategories,
 } from './salary-structures.js';
 
+/**
+ * Payruns Table: Represents monthly/periodic payroll execution batches,
+ * aggregating status, date ranges, total gross/deductions/net, and approval workflows.
+ */
 export const payruns = pgTable(
   'payruns',
   {
@@ -93,6 +97,10 @@ export const payrunsRelations = relations(payruns, ({ one, many }) => ({
   payslips: many(payslips),
 }));
 
+/**
+ * Payslips Table: Stores individual employee paycheck calculations per payrun batch,
+ * tracking worked days, financials, pre-flight validation warnings, and delivery status.
+ */
 export const payslips = pgTable(
   'payslips',
   {
@@ -201,6 +209,10 @@ export const payslipsRelations = relations(payslips, ({ one, many }) => ({
   lines: many(payslipLines),
 }));
 
+/**
+ * Payslip Lines Table: Stores itemized breakdown amounts and calculation rates
+ * for every salary rule applied to a payslip.
+ */
 export const payslipLines = pgTable(
   'payslip_lines',
   {
