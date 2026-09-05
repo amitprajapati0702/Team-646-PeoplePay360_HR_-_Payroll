@@ -1,14 +1,14 @@
 services:
   # PostgreSQL Database (Configured for Drizzle ORM)
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.9-alpine
     container_name: peoplepay360-postgres
     restart: unless-stopped
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-peoplepay360}
     volumes:
       - postgres_data:/var/lib/postgresql/data
