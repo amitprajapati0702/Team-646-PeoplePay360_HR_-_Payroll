@@ -2,7 +2,7 @@ import http from 'http';
 
 import app from "./app.js"
 
-import env from "./config/env.js"
+import {env} from "./config/env.js"
 import logger from './config/logger.js';
 import { connectRedis,disconnectRedis, checkRedisHealth } from './infrastructure/redis/index.js';
 import { connectDatabase,disconnectDatabase,checkDatabaseHealth } from './infrastructure/database/index.js';
@@ -62,4 +62,14 @@ function registerShutdown(server: http.Server): void {
       }
     });
   };
+
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
 }
+
+void bootstrap();

@@ -3,12 +3,13 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
-import env from "./config/env.js";
+import { env } from "./config/env.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import notFoundMiddleware from "./middleware/not-found.middleware.js";
 import requestIdMiddleware from "./middleware/request-id.middleware.js";
 import requestLoggerMiddleware from "./middleware/request-logger.middleware.js";
 import type { Application } from "express";
+import router from "./routes/index.js";
 
 const app: Application = express();
 
@@ -34,9 +35,13 @@ app.use(requestLoggerMiddleware);
 app.get("/api/v1", (_req, res) => {
     res.json({
         success: true,
-        message: "AuthForge Api is running",
+        message: "PeoplePay Api is running",
     });
 });
+
+// API Routes
+app.use("/api/v1", router);
+
 
 // Error Handling
 app.use(notFoundMiddleware);

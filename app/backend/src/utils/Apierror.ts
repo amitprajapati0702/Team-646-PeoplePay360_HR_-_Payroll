@@ -1,28 +1,27 @@
-export interface ApiErrorOptions{
+export interface ApiErrorOptions {
     statuscode?: number;
-    
-    message:string;
-    errorcode:string;
-    details?:unknown
-    isOperational?:boolean;
+
+    message: string;
+    errorcode: string;
+    details?: unknown
+    isOperational?: boolean;
 }
 
-export class ApiError extends Error{
-    public readonly statuscode : number;
-    public readonly errorcode:string;
-    public readonly details:unknown;
-    public readonly isOperational:boolean;
+export class ApiError extends Error {
+    public readonly statuscode: number;
+    public readonly errorcode: string;
+    public readonly details: unknown;
+    public readonly isOperational: boolean;
 
     constructor({
-         statuscode,
-        
+        statuscode,
         message,
         errorcode,
         details,
         isOperational = true,
-    }:ApiErrorOptions){
+    }: ApiErrorOptions) {
         super(message)
-        const resolvedStatus =statuscode ?? 500;
+        const resolvedStatus = statuscode ?? 500;
         this.statuscode = resolvedStatus;
         this.errorcode = errorcode;
         this.details = details;

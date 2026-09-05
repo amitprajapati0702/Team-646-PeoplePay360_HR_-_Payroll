@@ -1,9 +1,11 @@
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 
-import env  from '../../config/env.js';
+import {env} from '../../config/env.js';
 import logger from '../../config/logger.js';
 
+
+import * as schema from './schema/index.js';
 
 export const sql = postgres(env.DATABASE_URL, {
     max: 20,
@@ -12,7 +14,7 @@ export const sql = postgres(env.DATABASE_URL, {
     prepare: true,
 });
 
-export const db = drizzle(sql);
+export const db = drizzle(sql, { schema });
 
 export async function connectDatabase(): Promise<void> {
     try {
