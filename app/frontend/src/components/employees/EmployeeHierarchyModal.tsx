@@ -43,15 +43,15 @@ function EmployeeHierarchyContent({
   return (
     <>
       <DialogHeader>
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 text-white shadow-inner">
             <GitFork className="h-5 w-5" />
           </div>
           <div>
-            <DialogTitle className="text-base font-bold text-slate-900">
+            <DialogTitle className="text-lg font-black tracking-tight text-white">
               Reporting & Organization Hierarchy
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
+            <DialogDescription className="text-xs text-zinc-400">
               Interactive reporting tree & direct subordinates
             </DialogDescription>
           </div>
@@ -60,46 +60,46 @@ function EmployeeHierarchyContent({
 
       {isLoading ? (
         <div className="space-y-4 py-6">
-          <Skeleton className="h-20 w-full rounded-2xl" />
-          <Skeleton className="h-20 w-full rounded-2xl" />
-          <Skeleton className="h-28 w-full rounded-2xl" />
+          <Skeleton className="h-20 w-full rounded-2xl bg-zinc-800" />
+          <Skeleton className="h-20 w-full rounded-2xl bg-zinc-800" />
+          <Skeleton className="h-28 w-full rounded-2xl bg-zinc-800" />
         </div>
       ) : (
         <div className="py-4 space-y-6">
           {/* 1. Manager Section */}
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-              <ArrowUp className="h-3.5 w-3.5 text-indigo-600" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
+              <ArrowUp className="h-3.5 w-3.5 text-zinc-300" />
               <span>Reports To (Manager)</span>
             </div>
             {hierarchy?.manager ? (
               <div
                 onClick={() => setActiveEmployeeId(hierarchy.manager!.id)}
-                className="group flex items-center justify-between p-3.5 rounded-xl border border-slate-200/80 bg-white hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer"
+                className="group flex items-center justify-between p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:shadow-md transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-indigo-500/10">
+                  <Avatar className="h-10 w-10 ring-2 ring-zinc-700">
                     <AvatarImage src={hierarchy.manager.avatarUrl || ''} />
-                    <AvatarFallback className="bg-indigo-50 font-semibold text-xs text-indigo-700">
+                    <AvatarFallback className="bg-zinc-800 font-semibold text-xs text-white">
                       {hierarchy.manager.firstName[0]}
                       {hierarchy.manager.lastName[0]}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                    <h4 className="text-xs font-bold text-white group-hover:text-zinc-300 transition-colors">
                       {hierarchy.manager.firstName} {hierarchy.manager.lastName}
                     </h4>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-zinc-400">
                       {hierarchy.manager.workEmail}
                     </p>
                   </div>
                 </div>
-                <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                <span className="text-[11px] font-mono font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-md">
                   {hierarchy.manager.employeeCode}
                 </span>
               </div>
             ) : (
-              <div className="p-3.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center text-xs text-slate-400">
+              <div className="p-3.5 rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 text-center text-xs text-zinc-500">
                 Top level (No designated manager)
               </div>
             )}
@@ -107,31 +107,31 @@ function EmployeeHierarchyContent({
 
           {/* Tree Branch Visual Connector */}
           <div className="flex justify-center -my-3">
-            <div className="h-6 w-0.5 bg-indigo-200" />
+            <div className="h-6 w-0.5 bg-zinc-700" />
           </div>
 
           {/* 2. Current Active Focus Node */}
-          <div className="rounded-2xl border-2 border-indigo-600 bg-indigo-50/40 p-4 shadow-sm">
+          <div className="rounded-2xl border border-zinc-700 bg-zinc-900 p-4 shadow-md">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-800 border border-zinc-700 text-white font-bold text-sm">
                   <User className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">
+                    <h3 className="text-sm font-bold text-white">
                       {initialEmployee.fullName ||
                         `${initialEmployee.firstName} ${initialEmployee.lastName}`}
                     </h3>
                     <EmployeeStatusBadge status={initialEmployee.status} />
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-zinc-400 mt-0.5">
                     {initialEmployee.jobPosition?.title || 'Employee'} •{' '}
                     {initialEmployee.department?.name || 'Department'}
                   </p>
                 </div>
               </div>
-              <span className="font-mono text-xs font-semibold text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-indigo-100">
+              <span className="font-mono text-xs font-semibold text-white bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700">
                 {initialEmployee.employeeCode}
               </span>
             </div>
@@ -139,17 +139,17 @@ function EmployeeHierarchyContent({
 
           {/* Tree Branch Visual Connector */}
           <div className="flex justify-center -my-3">
-            <div className="h-6 w-0.5 bg-indigo-200" />
+            <div className="h-6 w-0.5 bg-zinc-700" />
           </div>
 
           {/* 3. Direct Subordinates / Direct Reports */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+              <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                <ArrowDown className="h-3.5 w-3.5 text-zinc-300" />
                 <span>Direct Reports</span>
               </div>
-              <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full">
                 {hierarchy?.directReportsCount || 0} Subordinates
               </span>
             </div>
@@ -163,21 +163,21 @@ function EmployeeHierarchyContent({
                       setActiveEmployeeId(report.id);
                       if (onSelectEmployee) onSelectEmployee(report.id);
                     }}
-                    className="group flex items-center justify-between p-3 rounded-xl border border-slate-200/80 bg-white hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer"
+                    className="group flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:shadow-xs transition-all cursor-pointer"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={report.avatarUrl || ''} />
-                        <AvatarFallback className="bg-slate-100 text-[10px] font-bold text-slate-700">
+                        <AvatarFallback className="bg-zinc-800 text-[10px] font-bold text-white border border-zinc-700">
                           {report.firstName[0]}
                           {report.lastName[0]}
                         </AvatarFallback>
                       </Avatar>
                       <div className="truncate">
-                        <p className="text-xs font-semibold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
+                        <p className="text-xs font-semibold text-white truncate group-hover:text-zinc-300 transition-colors">
                           {report.firstName} {report.lastName}
                         </p>
-                        <p className="text-[10px] text-slate-400 truncate">
+                        <p className="text-[10px] text-zinc-500 truncate">
                           {report.jobPosition?.title || report.workEmail}
                         </p>
                       </div>
@@ -190,9 +190,9 @@ function EmployeeHierarchyContent({
                 ))}
               </div>
             ) : (
-              <div className="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center">
-                <Users className="h-6 w-6 text-slate-300 mx-auto mb-1" />
-                <p className="text-xs font-medium text-slate-500">
+              <div className="p-4 rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 text-center">
+                <Users className="h-6 w-6 text-zinc-600 mx-auto mb-1" />
+                <p className="text-xs font-medium text-zinc-500">
                   No direct subordinates assigned.
                 </p>
               </div>
@@ -201,8 +201,13 @@ function EmployeeHierarchyContent({
         </div>
       )}
 
-      <div className="flex justify-end pt-2 border-t border-slate-100">
-        <Button variant="outline" size="sm" onClick={onClose}>
+      <div className="flex justify-end pt-4 border-t border-zinc-800">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onClose}
+          className="border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:border-zinc-500 font-bold"
+        >
           Close
         </Button>
       </div>
@@ -220,7 +225,7 @@ export function EmployeeHierarchyModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[88vh] overflow-y-auto bg-[#121215] border-zinc-800 text-white shadow-2xl p-6">
         <EmployeeHierarchyContent
           key={initialEmployee.id}
           initialEmployee={initialEmployee}

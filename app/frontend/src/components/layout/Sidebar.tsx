@@ -12,6 +12,7 @@ import {
   PieChart,
   Settings,
   Building2,
+  Briefcase,
   DollarSign,
   LogOut,
   ChevronRight,
@@ -47,13 +48,15 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { label: 'Executive Dashboard', href: '/reports', icon: PieChart },
+      { label: 'Executive Dashboard', href: '/dashboard', icon: PieChart },
+      { label: 'Reports & Analytics', href: '/reports', icon: FileText },
     ],
   },
   {
     label: 'Human Resources',
     items: [
       { label: 'Employee Hub', href: '/employees', icon: Users },
+      { label: 'Add Employee', href: '/employees/new', icon: Users, minRole: 'HR_MANAGER' },
       { label: 'Contracts', href: '/contracts', icon: FileText },
       { label: 'Attendance Logs', href: '/attendance', icon: Clock },
       { label: 'Time Off & Leaves', href: '/time-off', icon: CalendarCheck },
@@ -67,9 +70,10 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Organization',
+    label: 'Organization Structure',
     items: [
-      { label: 'Departments & Roles', href: '/organization/departments', icon: Building2 },
+      { label: 'Departments', href: '/organization/departments', icon: Building2 },
+      { label: 'Job Positions', href: '/organization/positions', icon: Briefcase },
       { label: 'Working Schedules', href: '/organization/schedules', icon: Clock },
     ],
   },
@@ -119,7 +123,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
       >
         {/* Brand Header */}
         <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-5 bg-zinc-950/50">
-          <Link href="/reports" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-black shadow-md">
               <Command className="h-4 w-4 stroke-[2.5]" />
             </div>
@@ -207,30 +211,54 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           })}
 
           {/* System Settings & Health */}
+          {/* System Settings & Health */}
           <div>
             <div className="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              System
+              Personal & System
             </div>
-            <Link
-              href="/settings"
-              onClick={onMobileClose}
-              className={cn(
-                'group flex items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold transition-all',
-                pathname === '/settings'
-                  ? 'bg-white text-black font-bold'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              )}
-            >
-              <div className="flex items-center gap-2.5">
-                <Settings
-                  className={cn(
-                    'h-4 w-4 shrink-0',
-                    pathname === '/settings' ? 'text-black' : 'text-zinc-400 group-hover:text-white'
-                  )}
-                />
-                <span>Settings & Diagnostics</span>
-              </div>
-            </Link>
+            <div className="space-y-0.5">
+              <Link
+                href="/profile"
+                onClick={onMobileClose}
+                className={cn(
+                  'group flex items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold transition-all',
+                  pathname === '/profile'
+                    ? 'bg-white text-black font-bold shadow-md'
+                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Command
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      pathname === '/profile' ? 'text-black' : 'text-zinc-400 group-hover:text-white'
+                    )}
+                  />
+                  <span>My Profile & Password</span>
+                </div>
+              </Link>
+
+              <Link
+                href="/settings"
+                onClick={onMobileClose}
+                className={cn(
+                  'group flex items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold transition-all',
+                  pathname === '/settings'
+                    ? 'bg-white text-black font-bold shadow-md'
+                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      pathname === '/settings' ? 'text-black' : 'text-zinc-400 group-hover:text-white'
+                    )}
+                  />
+                  <span>Settings & Diagnostics</span>
+                </div>
+              </Link>
+            </div>
 
             {/* Gateway Status Widget */}
             <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950 p-2.5">
@@ -255,19 +283,25 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         {/* User Card & Logout */}
         <div className="border-t border-zinc-800 p-3 bg-zinc-950/40">
           <div className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900/90 p-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-xs font-black text-black shrink-0 shadow-xs">
-              {getInitials()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-white truncate">
-                {user?.employee
-                  ? `${user.employee.firstName} ${user.employee.lastName}`
-                  : user?.email ?? 'User'}
-              </p>
-              <p className="text-[10px] font-mono font-medium text-zinc-400 truncate">
-                {ROLE_LABELS[user?.role ?? 'EMPLOYEE']}
-              </p>
-            </div>
+            <Link
+              href="/profile"
+              onClick={onMobileClose}
+              className="flex items-center gap-2.5 flex-1 min-w-0 group cursor-pointer"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-xs font-black text-black shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                {getInitials()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white truncate group-hover:text-zinc-300 transition-colors">
+                  {user?.employee
+                    ? `${user.employee.firstName} ${user.employee.lastName}`
+                    : user?.email ?? 'User'}
+                </p>
+                <p className="text-[10px] font-mono font-medium text-zinc-400 truncate">
+                  {ROLE_LABELS[user?.role ?? 'EMPLOYEE']}
+                </p>
+              </div>
+            </Link>
             <button
               onClick={logout}
               title="Sign Out"

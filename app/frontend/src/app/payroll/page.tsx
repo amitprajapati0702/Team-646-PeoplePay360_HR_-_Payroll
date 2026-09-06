@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 
 const STATE_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   DRAFT: { bg: 'bg-zinc-900 text-zinc-300 border-zinc-700', text: 'Draft Setup', icon: Clock },
@@ -159,9 +160,13 @@ export default function PayrollPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-white">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800/80 pb-5">
+    <AppShell
+      title="Payrun & Batch Payroll Processing"
+      subtitle="Two-step batch payroll execution, dynamic rule computation, statutory deductions, and payslip generation."
+    >
+      <div className="space-y-6 max-w-7xl mx-auto text-white">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800/80 pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-white">
             Payrun & Batch Payroll Processing
@@ -621,5 +626,6 @@ export default function PayrollPage() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

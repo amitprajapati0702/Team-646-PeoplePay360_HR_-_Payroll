@@ -9,7 +9,6 @@ import {
   CalendarCheck,
   Plus,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
   Clock,
@@ -18,26 +17,72 @@ import {
   Check,
   X,
   AlertCircle,
-  FileText,
+  Layers,
   ChevronRight,
   TrendingDown,
   ShieldCheck,
+  Loader2,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AppShell } from '@/components/layout/AppShell';
 
-const LEAVE_TYPES = [
-  { id: 'PAID', label: 'Paid Leave', color: 'bg-zinc-900 text-white border-zinc-700' },
-  { id: 'UNPAID', label: 'Unpaid Leave', color: 'bg-zinc-900 text-zinc-400 border-zinc-800' },
-  { id: 'SICK', label: 'Sick Leave', color: 'bg-blue-950 text-blue-300 border-blue-800' },
-  { id: 'CASUAL', label: 'Casual Leave', color: 'bg-zinc-900 text-zinc-300 border-zinc-700' },
-  { id: 'MATERNITY', label: 'Maternity Leave', color: 'bg-purple-950 text-purple-300 border-purple-800' },
-  { id: 'PATERNITY', label: 'Paternity Leave', color: 'bg-indigo-950 text-indigo-300 border-indigo-800' },
-];
+export interface TimeOffType {
+  id: string;
+  name: string;
+  code: string;
+  unit: string;
+  isPaid: boolean;
+  colorCode: string;
+  isActive: boolean;
+}
+
+export interface TimeOffAllocation {
+  id: string;
+  employeeId: string;
+  timeOffTypeId: string;
+  allocatedUnits: string | number;
+  takenUnits: string | number;
+  validityStart: string;
+  validityEnd: string;
+  status: string;
+  timeOffType?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+}
+
+export interface TimeOffRequest {
+  id: string;
+  employeeId: string;
+  timeOffTypeId: string;
+  startDate: string;
+  endDate: string;
+  requestedUnits: string | number;
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REFUSED' | 'CANCELLED';
+  reason?: string | null;
+  refusalReason?: string | null;
+  createdAt: string;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    employeeNumber?: string;
+  };
+  timeOffType?: {
+    id: string;
+    name: string;
+    code: string;
+    colorCode: string;
+  };
+}
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   SUBMITTED: { bg: 'bg-amber-950 border-amber-800 text-amber-300', text: 'Pending Approval', icon: Clock },
   APPROVED: { bg: 'bg-emerald-950 border-emerald-800 text-emerald-300', text: 'Approved', icon: CheckCircle2 },
-  REJECTED: { bg: 'bg-rose-950 border-rose-800 text-rose-300', text: 'Rejected', icon: XCircle },
+  REFUSED: { bg: 'bg-rose-950 border-rose-800 text-rose-300', text: 'Rejected', icon: XCircle },
   CANCELLED: { bg: 'bg-zinc-900 border-zinc-800 text-zinc-400', text: 'Cancelled', icon: X },
 };
 
@@ -52,131 +97,194 @@ export default function TimeOffPage() {
   const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  const isHR = ['HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'ADMIN'].includes(user?.role || '');
+
   // Form state
   const [formData, setFormData] = useState({
     employeeId: user?.employee?.id || '',
-    leaveType: 'PAID',
-    startDate: '',
-    endDate: '',
+    timeOffTypeId: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
     reason: '',
   });
 
-  const isHR = ['HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'ADMIN'].includes(user?.role || '');
+  // Calculate requested days
+  const calculateDays = (start: string, end: string) => {
+    if (!start || !end) return 1;
+    const s = new Date(start);
+    const e = new Date(end);
+    const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, diff);
+  };
 
-  // Fetch Leave Requests
-  const { data: leavesData, isLoading: isLeavesLoading } = useQuery({
-    queryKey: ['leaves', statusFilter, typeFilter],
+  // 1. Fetch Leave Types from DB
+  const { data: typesResponse } = useQuery({
+    queryKey: ['time-off-types'],
+    queryFn: async () => {
+      const res = await apiClient.get<any>('/time-off/types');
+      return res;
+    },
+  });
+  const leaveTypes: TimeOffType[] = (typesResponse?.data || typesResponse?.timeOffTypes || typesResponse || []) as TimeOffType[];
+
+  // 2. Fetch Leave Allocations (Balances)
+  const { data: allocationsResponse } = useQuery({
+    queryKey: ['time-off-allocations', user?.employee?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (!isHR && user?.employee?.id) {
+        params.append('employeeId', user.employee.id);
+      }
+      const res = await apiClient.get<any>(`/time-off/allocations?${params.toString()}`);
+      return res;
+    },
+  });
+  const allocations: TimeOffAllocation[] = (allocationsResponse?.data || allocationsResponse?.allocations || allocationsResponse || []) as TimeOffAllocation[];
+
+  // 3. Fetch Leave Requests
+  const { data: requestsResponse, isLoading: isRequestsLoading } = useQuery({
+    queryKey: ['time-off-requests', statusFilter, typeFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
-      if (typeFilter !== 'ALL') params.append('leaveType', typeFilter);
+      if (typeFilter !== 'ALL') params.append('timeOffTypeId', typeFilter);
       if (!isHR && user?.employee?.id) params.append('employeeId', user.employee.id);
-      
-      const res = await apiClient.get<any>(`/leaves?${params.toString()}`);
-      return res.data;
+
+      const res = await apiClient.get<any>(`/time-off/requests?${params.toString()}`);
+      return res;
     },
   });
+  const requests: TimeOffRequest[] = (requestsResponse?.data || requestsResponse?.requests || requestsResponse || []) as TimeOffRequest[];
 
-  // Fetch Employees for dropdown
-  const { data: employeesData } = useQuery({
+  // 4. Fetch Employees lookup
+  const { data: employeesResponse } = useQuery({
     queryKey: ['employees-lookup'],
     queryFn: async () => {
       const res = await apiClient.get<any>('/employees?limit=100');
-      return res.data;
+      return res;
     },
     enabled: isHR,
   });
+  const employees = employeesResponse?.data || employeesResponse?.employees || [];
 
-  // Apply Leave Mutation
+  // 5. Apply Leave Mutation
   const applyMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiClient.post('/leaves', data);
-      return res.data;
+    mutationFn: async (data: typeof formData) => {
+      const requestedUnits = calculateDays(data.startDate, data.endDate);
+      const res = await apiClient.post('/time-off/requests', {
+        employeeId: data.employeeId,
+        timeOffTypeId: data.timeOffTypeId,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        requestedUnits,
+        reason: data.reason || undefined,
+      });
+      return res;
     },
     onSuccess: () => {
-      toast.success('Leave request submitted successfully');
+      toast.success('Leave application submitted successfully');
       setIsApplyModalOpen(false);
       setFormData({
-        employeeId: user?.employee?.id || '',
-        leaveType: 'PAID',
-        startDate: '',
-        endDate: '',
+        employeeId: user?.employee?.id || (employees[0]?.id ?? ''),
+        timeOffTypeId: leaveTypes[0]?.id || '',
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0],
         reason: '',
       });
-      queryClient.invalidateQueries({ queryKey: ['leaves'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['time-off-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['time-off-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['payroll-dashboard'] });
     },
     onError: (err: any) => {
       toast.error(err?.message || 'Failed to submit leave request');
     },
   });
 
-  // Approve Mutation
+  // 6. Approve Mutation
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiClient.patch(`/leaves/${id}/approve`, {});
-      return res.data;
+      const res = await apiClient.patch(`/time-off/requests/${id}/action`, { action: 'APPROVE' });
+      return res;
     },
     onSuccess: () => {
       toast.success('Leave request approved');
-      queryClient.invalidateQueries({ queryKey: ['leaves'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['time-off-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['time-off-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['payroll-dashboard'] });
     },
     onError: (err: any) => {
-      toast.error(err?.message || 'Failed to approve leave');
+      toast.error(err?.message || 'Failed to approve leave request');
     },
   });
 
-  // Reject Mutation
-  const rejectMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const res = await apiClient.patch(`/leaves/${id}/reject`, { rejectionReason: reason });
-      return res.data;
+  // 7. Refuse Mutation
+  const refuseMutation = useMutation({
+    mutationFn: async ({ id, refusalReason }: { id: string; refusalReason: string }) => {
+      const res = await apiClient.patch(`/time-off/requests/${id}/action`, {
+        action: 'REFUSE',
+        refusalReason,
+      });
+      return res;
     },
     onSuccess: () => {
       toast.success('Leave request rejected');
       setIsRejectModalOpen(false);
       setSelectedLeaveId(null);
       setRejectionReason('');
-      queryClient.invalidateQueries({ queryKey: ['leaves'] });
+      queryClient.invalidateQueries({ queryKey: ['time-off-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['time-off-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['payroll-dashboard'] });
     },
     onError: (err: any) => {
-      toast.error(err?.message || 'Failed to reject leave');
+      toast.error(err?.message || 'Failed to refuse leave request');
     },
   });
 
-  const leaves = leavesData?.leaves || [];
-
-  const filteredLeaves = leaves.filter((leave: any) => {
-    const employeeName = `${leave.employee?.firstName} ${leave.employee?.lastName}`.toLowerCase();
+  const filteredRequests = requests.filter((req: TimeOffRequest) => {
+    const name = `${req.employee?.firstName} ${req.employee?.lastName}`.toLowerCase();
+    const code = (req.employee?.employeeCode || '').toLowerCase();
     const search = searchTerm.toLowerCase();
-    return employeeName.includes(search) || leave.reason?.toLowerCase().includes(search);
+    return name.includes(search) || code.includes(search) || req.reason?.toLowerCase().includes(search);
   });
 
-  const pendingCount = leaves.filter((l: any) => l.status === 'SUBMITTED').length;
-  const approvedCount = leaves.filter((l: any) => l.status === 'APPROVED').length;
-  const rejectedCount = leaves.filter((l: any) => l.status === 'REJECTED').length;
+  const pendingCount = requests.filter((r: TimeOffRequest) => r.status === 'SUBMITTED').length;
+  const approvedCount = requests.filter((r: TimeOffRequest) => r.status === 'APPROVED').length;
+  const refusedCount = requests.filter((r: TimeOffRequest) => r.status === 'REFUSED').length;
+
+  // Aggregate balance calculations
+  const totalAllocated = allocations.reduce((sum: number, a: TimeOffAllocation) => sum + Number(a.allocatedUnits || 0), 0);
+  const totalTaken = allocations.reduce((sum: number, a: TimeOffAllocation) => sum + Number(a.takenUnits || 0), 0);
+  const totalRemaining = Math.max(0, totalAllocated - totalTaken);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-white">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
+    <AppShell
+      title="Time Off & Leave Management"
+      subtitle="Submit leave requests, manage casual/sick/paid allowances, track real balances, and execute manager approvals."
+    >
+      <div className="space-y-6 max-w-7xl mx-auto text-white pb-12">
+        {/* Top Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">
-            Time Off & Leave Management
-          </h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <span>Time Off & Leave Management</span>
+            </h1>
+            <span className="rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-0.5 text-[11px] font-mono font-semibold text-emerald-400">
+              Module 5
+            </span>
+          </div>
           <p className="text-xs text-zinc-400 mt-1">
-            Request, track, and approve employee leaves with automated balance calculations and attendance sync.
+            Submit leave requests, manage casual/sick/paid allowances, track real balances, and execute manager approvals.
           </p>
         </div>
 
         <button
           onClick={() => {
             setFormData({
-              employeeId: user?.employee?.id || (employeesData?.employees?.[0]?.id ?? ''),
-              leaveType: 'PAID',
-              startDate: '',
-              endDate: '',
+              employeeId: user?.employee?.id || (employees[0]?.id ?? ''),
+              timeOffTypeId: leaveTypes[0]?.id || '',
+              startDate: new Date().toISOString().split('T')[0],
+              endDate: new Date().toISOString().split('T')[0],
               reason: '',
             });
             setIsApplyModalOpen(true);
@@ -184,37 +292,50 @@ export default function TimeOffPage() {
           className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
         >
           <Plus className="h-4 w-4 text-white" />
-          <span>Request Time Off</span>
+          <span>Apply For Leave</span>
         </button>
       </div>
 
-      {/* KPI Stats Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Leave Balance & Status Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5 shadow-md">
           <div className="flex items-center justify-between text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Pending Requests</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Leave Balance</span>
+            <CalendarDays className="h-4 w-4 text-emerald-400" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-white font-mono">
+            {totalRemaining} <span className="text-xs font-normal text-zinc-400">Days Left</span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Total: {totalAllocated} | Used: {totalTaken}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5 shadow-md">
+          <div className="flex items-center justify-between text-zinc-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Pending Approvals</span>
             <Clock className="h-4 w-4 text-amber-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-white font-mono">{pendingCount} Requests</div>
-          <p className="text-xs text-zinc-400 mt-0.5">Awaiting manager review</p>
+          <p className="text-xs text-zinc-400 mt-0.5">Awaiting HR / Manager review</p>
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5 shadow-md">
           <div className="flex items-center justify-between text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Approved This Month</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Approved Leaves</span>
             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-white font-mono">{approvedCount} Leaves</div>
-          <p className="text-xs text-zinc-400 mt-0.5">Deducted from balance</p>
+          <p className="text-xs text-zinc-400 mt-0.5">Synced with attendance</p>
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5 shadow-md">
           <div className="flex items-center justify-between text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Applications</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Total History</span>
             <CalendarCheck className="h-4 w-4 text-white" />
           </div>
-          <div className="mt-2 text-2xl font-bold text-white font-mono">{leaves.length} Total</div>
-          <p className="text-xs text-zinc-400 mt-0.5">{rejectedCount} rejected requests</p>
+          <div className="mt-2 text-2xl font-bold text-white font-mono">{requests.length} Records</div>
+          <p className="text-xs text-zinc-400 mt-0.5">{refusedCount} rejected requests</p>
         </div>
       </div>
 
@@ -224,7 +345,7 @@ export default function TimeOffPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search employee or reason..."
+            placeholder="Search employee, ID code, or reason..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
@@ -240,7 +361,7 @@ export default function TimeOffPage() {
             <option value="ALL">All Statuses</option>
             <option value="SUBMITTED">Pending Approval</option>
             <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
+            <option value="REFUSED">Rejected</option>
           </select>
 
           <select
@@ -249,112 +370,94 @@ export default function TimeOffPage() {
             className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white focus:outline-none"
           >
             <option value="ALL">All Leave Types</option>
-            {LEAVE_TYPES.map((t) => (
+            {leaveTypes.map((t: TimeOffType) => (
               <option key={t.id} value={t.id}>
-                {t.label}
+                {t.name} ({t.code})
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Leaves Table */}
+      {/* Leave History & Decision Table */}
       <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#121215] shadow-md">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-800">
-            <thead className="bg-zinc-900/80">
+          <table className="min-w-full divide-y divide-zinc-800 text-xs">
+            <thead className="bg-zinc-900/80 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
               <tr>
-                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Employee
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Type
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Duration
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Days
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Reason
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Status
-                </th>
-                {isHR && (
-                  <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    Decision
-                  </th>
-                )}
+                <th className="px-5 py-3 text-left">Employee</th>
+                <th className="px-5 py-3 text-left">Leave Type</th>
+                <th className="px-5 py-3 text-left">Period</th>
+                <th className="px-5 py-3 text-center">Days</th>
+                <th className="px-5 py-3 text-left">Reason</th>
+                <th className="px-5 py-3 text-center">Status</th>
+                {isHR && <th className="px-5 py-3 text-right">Workflow Action</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60 bg-[#121215]">
-              {isLeavesLoading ? (
+            <tbody className="divide-y divide-zinc-800/60 bg-[#121215] text-zinc-300">
+              {isRequestsLoading ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-zinc-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>Loading leave requests...</span>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Loading leave applications...</span>
                     </div>
                   </td>
                 </tr>
-              ) : filteredLeaves.length === 0 ? (
+              ) : filteredRequests.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-zinc-400">
                     <CalendarCheck className="mx-auto h-8 w-8 text-zinc-600 mb-2" />
-                    No leave requests found matching filters.
+                    No leave requests found matching criteria.
                   </td>
                 </tr>
               ) : (
-                filteredLeaves.map((leave: any) => {
-                  const statusInfo = STATUS_BADGES[leave.status] || STATUS_BADGES.SUBMITTED;
+                filteredRequests.map((req: TimeOffRequest) => {
+                  const statusInfo = STATUS_BADGES[req.status] || STATUS_BADGES.SUBMITTED;
                   const StatusIcon = statusInfo.icon;
-                  const leaveTypeObj = LEAVE_TYPES.find((t) => t.id === leave.leaveType);
+                  const emp = req.employee;
 
                   return (
-                    <tr key={leave.id} className="hover:bg-zinc-900/60 transition-colors">
+                    <tr key={req.id} className="hover:bg-zinc-900/60 transition-colors">
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-700 text-white font-bold text-xs">
-                            {leave.employee?.firstName?.[0]}
-                            {leave.employee?.lastName?.[0]}
+                            {emp?.firstName?.[0]}
+                            {emp?.lastName?.[0]}
                           </div>
                           <div>
                             <div className="font-bold text-white text-xs">
-                              {leave.employee?.firstName} {leave.employee?.lastName}
+                              {emp?.firstName} {emp?.lastName}
                             </div>
                             <div className="text-[10px] text-zinc-400 font-mono">
-                              {leave.employee?.employeeNumber || leave.employee?.employeeCode}
+                              {emp?.employeeCode || emp?.employeeNumber || 'Linked'}
                             </div>
                           </div>
                         </div>
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold',
-                            leaveTypeObj?.color || 'bg-zinc-900 text-zinc-300 border-zinc-700'
-                          )}
-                        >
-                          {leaveTypeObj?.label || leave.leaveType}
+                        <span className="inline-flex items-center rounded-md border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-xs font-semibold text-white">
+                          {req.timeOffType?.name || 'Casual Leave'}
                         </span>
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap text-xs text-zinc-300 font-mono">
-                        {leave.startDate} → {leave.endDate}
+                        {req.startDate} → {req.endDate}
                       </td>
 
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs font-bold text-white">
-                        {leave.daysCount} {leave.daysCount === 1 ? 'day' : 'days'}
+                      <td className="px-5 py-3.5 whitespace-nowrap text-center font-bold text-white font-mono">
+                        {req.requestedUnits} {Number(req.requestedUnits) === 1 ? 'day' : 'days'}
                       </td>
 
                       <td className="px-5 py-3.5 text-xs text-zinc-300 max-w-xs truncate">
-                        {leave.reason || <span className="text-zinc-500 italic">None provided</span>}
+                        {req.reason || <span className="text-zinc-500 italic">No notes</span>}
+                        {req.refusalReason && (
+                          <div className="text-[10px] text-rose-400 mt-0.5">Refusal: {req.refusalReason}</div>
+                        )}
                       </td>
 
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-5 py-3.5 whitespace-nowrap text-center">
                         <span
                           className={cn(
                             'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
@@ -368,22 +471,22 @@ export default function TimeOffPage() {
 
                       {isHR && (
                         <td className="px-5 py-3.5 whitespace-nowrap text-right text-xs">
-                          {leave.status === 'SUBMITTED' ? (
+                          {req.status === 'SUBMITTED' ? (
                             <div className="flex items-center justify-end gap-1.5">
                               <button
-                                onClick={() => approveMutation.mutate(leave.id)}
+                                onClick={() => approveMutation.mutate(req.id)}
                                 disabled={approveMutation.isPending}
-                                className="inline-flex items-center gap-1 rounded-md border border-emerald-700 bg-emerald-900/80 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-800 transition-colors shadow-xs"
+                                className="inline-flex items-center gap-1 rounded-md border border-emerald-700 bg-emerald-900/80 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                               >
                                 <Check className="h-3 w-3 text-white" />
                                 <span>Approve</span>
                               </button>
                               <button
                                 onClick={() => {
-                                  setSelectedLeaveId(leave.id);
+                                  setSelectedLeaveId(req.id);
                                   setIsRejectModalOpen(true);
                                 }}
-                                className="inline-flex items-center gap-1 rounded-md border border-rose-700 bg-rose-900/80 px-2.5 py-1 text-xs font-bold text-white hover:bg-rose-800 transition-colors shadow-xs"
+                                className="inline-flex items-center gap-1 rounded-md border border-rose-700 bg-rose-900/80 px-2.5 py-1 text-xs font-bold text-white hover:bg-rose-800 transition-colors shadow-xs cursor-pointer"
                               >
                                 <X className="h-3 w-3 text-white" />
                                 <span>Refuse</span>
@@ -408,7 +511,7 @@ export default function TimeOffPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
           <div className="w-full max-w-lg rounded-2xl bg-[#121215] p-6 shadow-2xl border border-zinc-800 text-white">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <h3 className="text-base font-bold text-white">Request Time Off</h3>
+              <h3 className="text-base font-bold text-white">Submit Leave Request</h3>
               <button
                 onClick={() => setIsApplyModalOpen(false)}
                 className="text-zinc-400 hover:text-white cursor-pointer"
@@ -434,7 +537,7 @@ export default function TimeOffPage() {
                     className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-zinc-400 focus:outline-none"
                   >
                     <option value="" disabled>Select Employee</option>
-                    {employeesData?.employees?.map((emp: any) => (
+                    {employees.map((emp: any) => (
                       <option key={emp.id} value={emp.id}>
                         {emp.firstName} {emp.lastName} ({emp.employeeNumber || emp.employeeCode})
                       </option>
@@ -444,16 +547,17 @@ export default function TimeOffPage() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">Leave Type *</label>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Leave Category / Type *</label>
                 <select
                   required
-                  value={formData.leaveType}
-                  onChange={(e) => setFormData({ ...formData, leaveType: e.target.value })}
+                  value={formData.timeOffTypeId}
+                  onChange={(e) => setFormData({ ...formData, timeOffTypeId: e.target.value })}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-zinc-400 focus:outline-none"
                 >
-                  {LEAVE_TYPES.map((t) => (
+                  <option value="" disabled>Select Leave Type</option>
+                  {leaveTypes.map((t: TimeOffType) => (
                     <option key={t.id} value={t.id}>
-                      {t.label}
+                      {t.name} ({t.code})
                     </option>
                   ))}
                 </select>
@@ -482,13 +586,20 @@ export default function TimeOffPage() {
                 </div>
               </div>
 
+              <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 text-xs flex items-center justify-between">
+                <span className="text-zinc-400">Calculated Duration:</span>
+                <span className="font-bold text-emerald-400 font-mono">
+                  {calculateDays(formData.startDate, formData.endDate)} {calculateDays(formData.startDate, formData.endDate) === 1 ? 'Day' : 'Days'}
+                </span>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1">Reason / Notes</label>
                 <textarea
                   rows={3}
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  placeholder="Context for this leave..."
+                  placeholder="State the reason for this time-off request..."
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-zinc-400 focus:outline-none"
                 />
               </div>
@@ -503,8 +614,8 @@ export default function TimeOffPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={applyMutation.isPending}
-                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 disabled:opacity-50"
+                  disabled={applyMutation.isPending || !formData.timeOffTypeId}
+                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 disabled:opacity-50 cursor-pointer"
                 >
                   {applyMutation.isPending ? 'Submitting...' : 'Submit Request'}
                 </button>
@@ -528,7 +639,7 @@ export default function TimeOffPage() {
                 required
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="e.g., Conflict with payrun cycle coverage..."
+                placeholder="e.g., Staffing constraints during month-end payroll..."
                 className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-zinc-400 focus:outline-none"
               />
             </div>
@@ -547,20 +658,21 @@ export default function TimeOffPage() {
               </button>
               <button
                 type="button"
-                disabled={!rejectionReason.trim() || rejectMutation.isPending}
+                disabled={!rejectionReason.trim() || refuseMutation.isPending}
                 onClick={() => {
                   if (selectedLeaveId) {
-                    rejectMutation.mutate({ id: selectedLeaveId, reason: rejectionReason });
+                    refuseMutation.mutate({ id: selectedLeaveId, refusalReason: rejectionReason });
                   }
                 }}
-                className="rounded-lg border border-rose-700 bg-rose-900 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50"
+                className="rounded-lg border border-rose-700 bg-rose-900 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50 cursor-pointer"
               >
-                {rejectMutation.isPending ? 'Refusing...' : 'Confirm Refusal'}
+                {refuseMutation.isPending ? 'Refusing...' : 'Confirm Refusal'}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

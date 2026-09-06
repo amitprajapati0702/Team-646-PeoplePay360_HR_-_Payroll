@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, boolean, timestamp } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm';
 import { userRoleEnum } from './enums.js';
 import { employees } from './employees.js';
+import { sessions } from './sessions.js';
 
 /**
  * Users Table: Stores system user credentials, authentication details,
@@ -22,9 +23,10 @@ export const users = pgTable('users', {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const usersRelations = relations(users, ({ one }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   employee: one(employees, {
     fields: [users.id],
     references: [employees.userId],
   }),
+  sessions: many(sessions),
 }));

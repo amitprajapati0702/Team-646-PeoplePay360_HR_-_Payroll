@@ -10,7 +10,7 @@ import {
 import {
   listLeaveTypes, getLeaveTypeById, createLeaveType, updateLeaveType, deleteLeaveType,
   listAllocations, getAllocationById, createAllocation, approveAllocation, deleteAllocation,
-  listRequests, getRequestById, createRequest, approveRequest, deleteRequest,
+  listRequests, getRequestById, createRequest, approveRequest, rejectRequest, deleteRequest,
 } from './time-off.controller.js';
 
 const router: Router = Router();
@@ -34,7 +34,10 @@ router.delete('/allocations/:id', requireMinRole('HR_MANAGER'), validateRequest(
 router.get('/requests', validateRequest({ query: requestQuerySchema }), listRequests);
 router.get('/requests/:id', validateRequest({ params: idParamSchema }), getRequestById);
 router.post('/requests', validateRequest({ body: createLeaveRequestSchema }), createRequest);
-router.patch('/requests/:id/action', requireMinRole('HR_MANAGER'), validateRequest({ params: idParamSchema, body: approveRequestSchema }), approveRequest);
+// Standard LLD Approval & Rejection endpoints (Managers / HR can approve or reject)
+router.patch('/requests/:id/approve', validateRequest({ params: idParamSchema }), approveRequest);
+router.patch('/requests/:id/reject', validateRequest({ params: idParamSchema }), rejectRequest);
+router.patch('/requests/:id/action', validateRequest({ params: idParamSchema, body: approveRequestSchema }), approveRequest);
 router.delete('/requests/:id', validateRequest({ params: idParamSchema }), deleteRequest);
 
 export default router;

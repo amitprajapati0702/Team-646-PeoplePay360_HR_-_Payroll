@@ -1,43 +1,15 @@
-import { db } from '../../infrastructure/database/client.js';
-import { contracts } from '../../infrastructure/database/schema/index.js';
-import { eq, and } from 'drizzle-orm';
+import { contractsRepository } from './contracts.repository.js';
 import ApiError from '../../utils/Apierror.js';
 import httpStatus from '../../utils/http-status.js';
 import type { CreateContractInput, UpdateContractInput, ContractQueryInput } from './contracts.schema.js';
 
 export class ContractsService {
   async listContracts(query: ContractQueryInput) {
-    const conditions = [];
-    if (query.employeeId) conditions.push(eq(contracts.employeeId, query.employeeId));
-    if (query.status) conditions.push(eq(contracts.status, query.status));
-
-    return await db.query.contracts.findMany({
-      where: conditions.length ? and(...conditions) : undefined,
-      with: {
-        employee: { columns: { id: true, firstName: true, lastName: true, employeeCode: true } },
-        department: { columns: { id: true, name: true } },
-        jobPosition: { columns: { id: true, title: true } },
-        salaryStructure: { columns: { id: true, name: true, code: true } },
-        workingSchedule: { columns: { id: true, name: true } },
-      },
-      orderBy: (c, { desc }) => [desc(c.startDate)],
-      limit: query.limit,
-      offset: (query.page - 1) * query.limit,
-    });
+    return await contractsRepository.findMany(query);
   }
 
   async getContractById(id: string) {
-    const contract = await db.query.contracts.findFirst({
-      where: eq(contracts.id, id),
-      with: {
-        employee: { columns: { id: true, firstName: true, lastName: true, employeeCode: true, avatarUrl: true } },
-        department: true,
-        jobPosition: true,
-        salaryStructure: { with: { structureRules: { with: { salaryRule: { with: { category: true } } } } } },
-        workingSchedule: { with: { lines: true } },
-      },
-    });
-
+    const contract = await contractsRepository.findById(id);
     if (!contract) {
       throw new ApiError({
         statuscode: httpStatus.NOT_FOUND,
@@ -49,10 +21,7 @@ export class ContractsService {
   }
 
   async createContract(data: CreateContractInput) {
-    // Check duplicate reference
-    const existing = await db.query.contracts.findFirst({
-      where: eq(contracts.contractReference, data.contractReference),
-    });
+    const existing = await contractsRepository.findByReference(data.contractReference);
     if (existing) {
       throw new ApiError({
         statuscode: httpStatus.CONFLICT,
@@ -61,28 +30,23 @@ export class ContractsService {
       });
     }
 
-    const [created] = await db
-      .insert(contracts)
-      .values({
-        contractReference: data.contractReference,
-        employeeId: data.employeeId,
-        departmentId: data.departmentId,
-        jobPositionId: data.jobPositionId,
-        salaryStructureId: data.salaryStructureId,
-        workingScheduleId: data.workingScheduleId,
-        startDate: data.startDate,
-        endDate: data.endDate ?? null,
-        wage: String(data.wage),
-        status: data.status ?? 'DRAFT',
-        notes: data.notes ?? null,
-      })
-      .returning();
-
-    return created;
+    return await contractsRepository.create({
+      contractReference: data.contractReference,
+      employeeId: data.employeeId,
+      departmentId: data.departmentId,
+      jobPositionId: data.jobPositionId,
+      salaryStructureId: data.salaryStructureId,
+      workingScheduleId: data.workingScheduleId,
+      startDate: data.startDate,
+      endDate: data.endDate ?? null,
+      wage: String(data.wage),
+      status: data.status ?? 'DRAFT',
+      notes: data.notes ?? null,
+    });
   }
 
   async updateContract(id: string, data: UpdateContractInput) {
-    const existing = await db.query.contracts.findFirst({ where: eq(contracts.id, id) });
+    const existing = await contractsRepository.findById(id);
     if (!existing) {
       throw new ApiError({
         statuscode: httpStatus.NOT_FOUND,
@@ -103,17 +67,11 @@ export class ContractsService {
     if (data.status !== undefined) updatePayload.status = data.status;
     if (data.notes !== undefined) updatePayload.notes = data.notes;
 
-    const [updated] = await db
-      .update(contracts)
-      .set(updatePayload)
-      .where(eq(contracts.id, id))
-      .returning();
-
-    return updated;
+    return await contractsRepository.update(id, updatePayload);
   }
 
   async deleteContract(id: string) {
-    const existing = await db.query.contracts.findFirst({ where: eq(contracts.id, id) });
+    const existing = await contractsRepository.findById(id);
     if (!existing) {
       throw new ApiError({
         statuscode: httpStatus.NOT_FOUND,
@@ -130,8 +88,7 @@ export class ContractsService {
       });
     }
 
-    const [deleted] = await db.delete(contracts).where(eq(contracts.id, id)).returning();
-    return deleted;
+    return await contractsRepository.delete(id);
   }
 
   /**
@@ -139,23 +96,8 @@ export class ContractsService {
    * Used by the payrun computation engine.
    */
   async findActiveContractForPeriod(employeeId: string, periodStart: string, periodEnd: string) {
-    const allContracts = await db.query.contracts.findMany({
-      where: and(eq(contracts.employeeId, employeeId), eq(contracts.status, 'ACTIVE')),
-      with: {
-        salaryStructure: {
-          with: {
-            structureRules: {
-              with: { salaryRule: { with: { category: true } } },
-              orderBy: (sr, { asc }) => [asc(sr.sequenceOverride)],
-            },
-          },
-        },
-        workingSchedule: { with: { lines: true } },
-      },
-      orderBy: (c, { desc }) => [desc(c.startDate)],
-    });
+    const allContracts = await contractsRepository.findActiveByEmployee(employeeId);
 
-    // Find the contract that overlaps the pay period
     const active = allContracts.find((c) => {
       const contractStart = c.startDate;
       const contractEnd = c.endDate;

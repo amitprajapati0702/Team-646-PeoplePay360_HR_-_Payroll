@@ -74,12 +74,12 @@ function StatusChangeForm({
   return (
     <form onSubmit={handleSubmit}>
       <DialogHeader>
-        <DialogTitle className="text-base font-bold text-slate-900">
+        <DialogTitle className="text-lg font-black tracking-tight text-white">
           Update Employment Status
         </DialogTitle>
-        <DialogDescription className="text-xs text-slate-500 mt-1">
+        <DialogDescription className="text-xs text-zinc-400 mt-1">
           Transition lifecycle status for{' '}
-          <span className="font-semibold text-slate-800">
+          <span className="font-semibold text-white">
             {employee.fullName || `${employee.firstName} ${employee.lastName}`}
           </span>{' '}
           ({employee.employeeCode})
@@ -88,17 +88,17 @@ function StatusChangeForm({
 
       <div className="space-y-4 py-4">
         <div>
-          <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
-            Target Lifecycle Status <span className="text-rose-500">*</span>
+          <label className="text-xs font-semibold text-zinc-300 mb-1.5 block">
+            Target Lifecycle Status <span className="text-rose-400">*</span>
           </label>
           <Select
             value={status}
             onValueChange={(val) => setStatus(val as EmployeeStatus)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white text-xs">
               <SelectValue placeholder="Select Status" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
               <SelectItem value="ACTIVE">🟢 Active</SelectItem>
               <SelectItem value="PROBATION">🟡 Probation</SelectItem>
               <SelectItem value="ON_LEAVE">🔵 On Leave</SelectItem>
@@ -110,7 +110,7 @@ function StatusChangeForm({
 
         {status === 'TERMINATED' && (
           <div>
-            <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+            <label className="text-xs font-semibold text-zinc-300 mb-1.5 block">
               Official Exit Date (YYYY-MM-DD)
             </label>
             <Input
@@ -118,16 +118,16 @@ function StatusChangeForm({
               value={exitDate}
               onChange={(e) => setExitDate(e.target.value)}
               placeholder="YYYY-MM-DD"
-              className="text-xs"
+              className="text-xs bg-zinc-900 border-zinc-700 text-white focus:border-zinc-400"
             />
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-zinc-500 mt-1">
               Leave blank to default to today&apos;s date.
             </p>
           </div>
         )}
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+          <label className="text-xs font-semibold text-zinc-300 mb-1.5 block">
             Status Change Note / Reason (Optional)
           </label>
           <Input
@@ -135,21 +135,26 @@ function StatusChangeForm({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Completed 90-day probation review successfully"
-            className="text-xs"
+            className="text-xs bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-zinc-400"
           />
         </div>
       </div>
 
-      <DialogFooter className="flex gap-2 sm:justify-end mt-2">
+      <DialogFooter className="flex gap-2 sm:justify-end mt-4 pt-4 border-t border-zinc-800">
         <Button
           type="button"
           variant="outline"
           onClick={onClose}
           disabled={statusMutation.isPending}
+          className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white"
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={statusMutation.isPending}>
+        <Button
+          type="submit"
+          disabled={statusMutation.isPending}
+          className="border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:border-zinc-500 shadow-md font-bold"
+        >
           {statusMutation.isPending ? 'Updating...' : 'Save Changes'}
         </Button>
       </DialogFooter>
@@ -167,7 +172,7 @@ export function StatusChangeModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-[#121215] border-zinc-800 text-white shadow-2xl p-6">
         <StatusChangeForm
           key={employee.id}
           employee={employee}

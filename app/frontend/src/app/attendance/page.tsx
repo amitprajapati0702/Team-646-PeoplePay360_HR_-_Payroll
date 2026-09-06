@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AppShell } from '@/components/layout/AppShell';
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   PRESENT: { bg: 'bg-emerald-950 text-emerald-300 border-emerald-800', text: 'Present', icon: CheckCircle2 },
@@ -122,9 +123,13 @@ export default function AttendancePage() {
   const absentCount = records.filter((r: any) => r.status === 'ABSENT').length;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-white">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
+    <AppShell
+      title="Attendance Management"
+      subtitle="Real-time punch records, worked hours calculation, overtime tracking, and manager attendance corrections."
+    >
+      <div className="space-y-6 max-w-7xl mx-auto text-white">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-white">
             Attendance & Work Schedules
@@ -547,5 +552,6 @@ export default function AttendancePage() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

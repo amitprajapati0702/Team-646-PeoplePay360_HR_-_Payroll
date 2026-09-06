@@ -5,12 +5,16 @@ import {
   createAttendanceSchema, updateAttendanceSchema, attendanceIdParamSchema, attendanceQuerySchema,
 } from './attendance.schema.js';
 import {
-  listAttendance, getAttendanceById, createAttendance, updateAttendance, deleteAttendance,
+  listAttendance, getAttendanceById, checkIn, checkOut, createAttendance, updateAttendance, deleteAttendance,
 } from './attendance.controller.js';
 
 const router: Router = Router();
 
 router.use(authenticate);
+
+// Standard LLD APIs
+router.post('/check-in', checkIn);
+router.post('/check-out', checkOut);
 
 router.get('/', validateRequest({ query: attendanceQuerySchema }), listAttendance);
 router.get('/:id', validateRequest({ params: attendanceIdParamSchema }), getAttendanceById);

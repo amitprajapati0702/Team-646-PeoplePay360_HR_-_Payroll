@@ -1,11 +1,9 @@
-import { db } from '../../infrastructure/database/client.js';
-import { attendances } from '../../infrastructure/database/schema/index.js';
-import { eq, and, gte, lte, between } from 'drizzle-orm';
+import { attendanceRepository } from './attendance.repository.js';
 import ApiError from '../../utils/Apierror.js';
 import httpStatus from '../../utils/http-status.js';
 import type { CreateAttendanceInput, UpdateAttendanceInput, AttendanceQueryInput } from './attendance.schema.js';
 
-function computeWorkedHours(checkIn: string, checkOut?: string | null): number {
+function computeWorkedHours(checkIn: string | Date, checkOut?: string | Date | null): number {
   if (!checkOut) return 0;
   const inTime = new Date(checkIn).getTime();
   const outTime = new Date(checkOut).getTime();
@@ -16,33 +14,11 @@ function computeWorkedHours(checkIn: string, checkOut?: string | null): number {
 
 export class AttendanceService {
   async listAttendance(query: AttendanceQueryInput) {
-    const conditions = [];
-    if (query.employeeId) conditions.push(eq(attendances.employeeId, query.employeeId));
-    if (query.status) conditions.push(eq(attendances.status, query.status));
-    if (query.dateFrom) conditions.push(gte(attendances.attendanceDate, query.dateFrom));
-    if (query.dateTo) conditions.push(lte(attendances.attendanceDate, query.dateTo));
-
-    return await db.query.attendances.findMany({
-      where: conditions.length ? and(...conditions) : undefined,
-      with: {
-        employee: { columns: { id: true, firstName: true, lastName: true, employeeCode: true, avatarUrl: true } },
-        editedByUser: { columns: { id: true, email: true } },
-      },
-      orderBy: (a, { desc }) => [desc(a.attendanceDate)],
-      limit: query.limit,
-      offset: (query.page - 1) * query.limit,
-    });
+    return await attendanceRepository.findMany(query);
   }
 
   async getAttendanceById(id: string) {
-    const att = await db.query.attendances.findFirst({
-      where: eq(attendances.id, id),
-      with: {
-        employee: { columns: { id: true, firstName: true, lastName: true, employeeCode: true } },
-        editedByUser: { columns: { id: true, email: true } },
-      },
-    });
-
+    const att = await attendanceRepository.findById(id);
     if (!att) {
       throw new ApiError({
         statuscode: httpStatus.NOT_FOUND,
@@ -53,14 +29,72 @@ export class AttendanceService {
     return att;
   }
 
-  async createAttendance(data: CreateAttendanceInput, actingUserId?: string) {
-    // Check for duplicate entry on same day for same employee
-    const existing = await db.query.attendances.findFirst({
-      where: and(
-        eq(attendances.employeeId, data.employeeId),
-        eq(attendances.attendanceDate, data.attendanceDate)
-      ),
+  /**
+   * Check In Algorithm:
+   * Current Time -> Check existing attendance -> Create record -> Mark Present
+   */
+  async checkIn(employeeId: string, customTime?: string) {
+    const now = customTime ? new Date(customTime) : new Date();
+    const today = now.toISOString().split('T')[0];
+
+    const existing = await attendanceRepository.findByEmployeeAndDate(employeeId, today);
+    if (existing) {
+      throw new ApiError({
+        statuscode: httpStatus.CONFLICT,
+        message: 'You have already checked in for today.',
+        errorcode: 'ATTENDANCE_ALREADY_CHECKED_IN',
+      });
+    }
+
+    return await attendanceRepository.create({
+      employeeId,
+      attendanceDate: today,
+      checkIn: now,
+      status: 'PRESENT',
+      workedHours: '0.00',
+      overtimeHours: '0.00',
+      isManuallyEdited: false,
     });
+  }
+
+  /**
+   * Check Out Algorithm:
+   * Find today's attendance -> Update Check Out Time -> Calculate Hours -> Save
+   */
+  async checkOut(employeeId: string, customTime?: string) {
+    const now = customTime ? new Date(customTime) : new Date();
+    const today = now.toISOString().split('T')[0];
+
+    const existing = await attendanceRepository.findByEmployeeAndDate(employeeId, today);
+    if (!existing) {
+      throw new ApiError({
+        statuscode: httpStatus.NOT_FOUND,
+        message: 'No check-in record found for today. Please check in first.',
+        errorcode: 'ATTENDANCE_NOT_CHECKED_IN',
+      });
+    }
+
+    if (existing.checkOut) {
+      throw new ApiError({
+        statuscode: httpStatus.CONFLICT,
+        message: 'You have already checked out for today.',
+        errorcode: 'ATTENDANCE_ALREADY_CHECKED_OUT',
+      });
+    }
+
+    const workedHours = computeWorkedHours(existing.checkIn, now);
+    const overtimeHours = workedHours > 8 ? workedHours - 8 : 0;
+
+    return await attendanceRepository.update(existing.id, {
+      checkOut: now,
+      workedHours: String(workedHours),
+      overtimeHours: String(Math.round(overtimeHours * 100) / 100),
+      updatedAt: new Date(),
+    });
+  }
+
+  async createAttendance(data: CreateAttendanceInput, actingUserId?: string) {
+    const existing = await attendanceRepository.findByEmployeeAndDate(data.employeeId, data.attendanceDate);
 
     if (existing) {
       throw new ApiError({
@@ -72,27 +106,22 @@ export class AttendanceService {
 
     const workedHours = computeWorkedHours(data.checkIn, data.checkOut);
 
-    const [created] = await db
-      .insert(attendances)
-      .values({
-        employeeId: data.employeeId,
-        attendanceDate: data.attendanceDate,
-        checkIn: new Date(data.checkIn),
-        checkOut: data.checkOut ? new Date(data.checkOut) : null,
-        workedHours: String(workedHours),
-        overtimeHours: workedHours > 8 ? String(workedHours - 8) : '0.00',
-        status: data.status ?? 'PRESENT',
-        isManuallyEdited: !!actingUserId,
-        editedByUserId: actingUserId ?? null,
-        editReason: data.editReason ?? null,
-      })
-      .returning();
-
-    return created;
+    return await attendanceRepository.create({
+      employeeId: data.employeeId,
+      attendanceDate: data.attendanceDate,
+      checkIn: new Date(data.checkIn),
+      checkOut: data.checkOut ? new Date(data.checkOut) : null,
+      workedHours: String(workedHours),
+      overtimeHours: workedHours > 8 ? String(workedHours - 8) : '0.00',
+      status: data.status ?? 'PRESENT',
+      isManuallyEdited: !!actingUserId,
+      editedByUserId: actingUserId ?? null,
+      editReason: data.editReason ?? null,
+    });
   }
 
   async updateAttendance(id: string, data: UpdateAttendanceInput, actingUserId?: string) {
-    const existing = await db.query.attendances.findFirst({ where: eq(attendances.id, id) });
+    const existing = await attendanceRepository.findById(id);
     if (!existing) {
       throw new ApiError({
         statuscode: httpStatus.NOT_FOUND,
@@ -119,17 +148,11 @@ export class AttendanceService {
     if (data.checkOut !== undefined) updatePayload.checkOut = data.checkOut ? new Date(data.checkOut) : null;
     if (data.status !== undefined) updatePayload.status = data.status;
 
-    const [updated] = await db
-      .update(attendances)
-      .set(updatePayload)
-      .where(eq(attendances.id, id))
-      .returning();
-
-    return updated;
+    return await attendanceRepository.update(id, updatePayload);
   }
 
   async deleteAttendance(id: string) {
-    const existing = await db.query.attendances.findFirst({ where: eq(attendances.id, id) });
+    const existing = await attendanceRepository.findById(id);
     if (!existing) {
       throw new ApiError({
         statuscode: httpStatus.NOT_FOUND,
@@ -137,8 +160,7 @@ export class AttendanceService {
         errorcode: 'ATTENDANCE_NOT_FOUND',
       });
     }
-    const [deleted] = await db.delete(attendances).where(eq(attendances.id, id)).returning();
-    return deleted;
+    return await attendanceRepository.delete(id);
   }
 
   /**
@@ -149,14 +171,7 @@ export class AttendanceService {
     dateFrom: string,
     dateTo: string
   ): Promise<{ presentDays: number; totalWorkedHours: number; overtimeHours: number }> {
-    const records = await db.query.attendances.findMany({
-      where: and(
-        eq(attendances.employeeId, employeeId),
-        gte(attendances.attendanceDate, dateFrom),
-        lte(attendances.attendanceDate, dateTo)
-      ),
-      columns: { status: true, workedHours: true, overtimeHours: true },
-    });
+    const records = await attendanceRepository.findRangeByEmployee(employeeId, dateFrom, dateTo);
 
     const presentDays = records.filter((r) =>
       ['PRESENT', 'LATE', 'OVERTIME', 'HALF_DAY'].includes(r.status)

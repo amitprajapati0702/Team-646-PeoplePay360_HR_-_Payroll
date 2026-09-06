@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 
 export interface DashboardKPIs {
   totalGrossMonthly: number;
@@ -185,9 +186,13 @@ export default function ReportsDashboardPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 text-white">
-      {/* Top Header Banner */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
+    <AppShell
+      title="Workforce & Payroll Analytics"
+      subtitle="Live enterprise payroll intelligence from PostgreSQL database, statutory deductions (PF & TDS), and compliance alerts."
+    >
+      <div className="space-y-6 max-w-7xl mx-auto pb-12 text-white">
+        {/* Top Header Banner */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
@@ -717,5 +722,6 @@ export default function ReportsDashboardPage() {
         </div>
       </div>
     </div>
+  </AppShell>
   );
 }

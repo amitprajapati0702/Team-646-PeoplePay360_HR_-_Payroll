@@ -1,21 +1,18 @@
-import { db } from '../../infrastructure/database/client.js';
-import { payruns, payslips, payslipLines, employees, contracts } from '../../infrastructure/database/schema/index.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { payrunRepository } from './payrun.repository.js';
 import ApiError from '../../utils/Apierror.js';
 import httpStatus from '../../utils/http-status.js';
 import { contractsService } from '../contracts/contracts.service.js';
 import { attendanceService } from '../attendance/attendance.service.js';
 import { timeOffService } from '../time-off/time-off.service.js';
-import type { CreatePayrunInput, UpdatePayrunInput, PayrunQueryInput, PayrunActionInput } from './payrun.schema.js';
+import type { CreatePayrunInput, PayrunQueryInput, PayrunActionInput } from './payrun.schema.js';
 
-// ─── Payroll Formula Engine ─────────────────────────────────────────────────
 interface SalaryContext {
   contract_wage: number;
   worked_days: number;
   planned_days: number;
   approved_leave_days: number;
   unpaid_leave_days: number;
-  [key: string]: number; // rule codes get stored here
+  [key: string]: number;
 }
 
 function evaluateRule(
@@ -35,12 +32,10 @@ function evaluateRule(
 
       case 'FORMULA': {
         if (!rule.formulaExpression) return 0;
-        // Safe formula evaluation — replace context variables in expression
         let expr = rule.formulaExpression;
         for (const [key, val] of Object.entries(ctx)) {
           expr = expr.replace(new RegExp(`\\b${key}\\b`, 'g'), String(val));
         }
-        // Only allow safe math expressions
         if (/[^0-9+\-*/().% ]/.test(expr)) return 0;
         // eslint-disable-next-line no-eval
         const result = eval(expr);
@@ -55,7 +50,6 @@ function evaluateRule(
   }
 }
 
-// Calculate working days in a date range (excluding weekends)
 function calculateWorkingDays(start: string, end: string): number {
   const startDate = new Date(start);
   const endDate = new Date(end);
@@ -71,40 +65,11 @@ function calculateWorkingDays(start: string, end: string): number {
 
 export class PayrunService {
   async listPayruns(query: PayrunQueryInput) {
-    const conditions = [];
-    if (query.status) conditions.push(eq(payruns.status, query.status));
-
-    return await db.query.payruns.findMany({
-      where: conditions.length ? and(...conditions) : undefined,
-      with: {
-        defaultSalaryStructure: { columns: { id: true, name: true, code: true } },
-        createdByUser: { columns: { id: true, email: true } },
-        validatedByUser: { columns: { id: true, email: true } },
-        payslips: { columns: { id: true, status: true, netAmount: true } },
-      },
-      orderBy: (p, { desc }) => [desc(p.createdAt)],
-      limit: query.limit,
-      offset: (query.page - 1) * query.limit,
-    });
+    return await payrunRepository.findMany(query);
   }
 
   async getPayrunById(id: string) {
-    const payrun = await db.query.payruns.findFirst({
-      where: eq(payruns.id, id),
-      with: {
-        defaultSalaryStructure: true,
-        createdByUser: { columns: { id: true, email: true } },
-        validatedByUser: { columns: { id: true, email: true } },
-        payslips: {
-          with: {
-            employee: { columns: { id: true, firstName: true, lastName: true, employeeCode: true, avatarUrl: true } },
-            salaryStructure: { columns: { id: true, name: true } },
-          },
-          orderBy: (p, { asc }) => [asc(p.payslipNumber)],
-        },
-      },
-    });
-
+    const payrun = await payrunRepository.findById(id);
     if (!payrun) {
       throw new ApiError({ statuscode: httpStatus.NOT_FOUND, message: 'Payrun not found.', errorcode: 'PAYRUN_NOT_FOUND' });
     }
@@ -112,14 +77,12 @@ export class PayrunService {
   }
 
   async createPayrun(data: CreatePayrunInput, actingUserId?: string) {
-    // Check for duplicate batch code
-    const existing = await db.query.payruns.findFirst({ where: eq(payruns.batchCode, data.batchCode) });
+    const existing = await payrunRepository.findByBatchCode(data.batchCode);
     if (existing) {
       throw new ApiError({ statuscode: httpStatus.CONFLICT, message: `Batch code '${data.batchCode}' already exists.`, errorcode: 'BATCH_CODE_EXISTS' });
     }
 
-    // Create the payrun record
-    const [payrun] = await db.insert(payruns).values({
+    const payrun = await payrunRepository.create({
       name: data.name,
       batchCode: data.batchCode,
       periodStart: data.periodStart,
@@ -128,9 +91,8 @@ export class PayrunService {
       status: 'COMPUTING',
       createdByUserId: actingUserId ?? null,
       notes: data.notes ?? null,
-    }).returning();
+    });
 
-    // Compute payslips for each employee
     let totalGross = 0;
     let totalDeductions = 0;
     let totalNet = 0;
@@ -141,16 +103,11 @@ export class PayrunService {
         await this.computePayslipForEmployee(payrun.id, employeeId, data.periodStart, data.periodEnd);
         payslipCount++;
       } catch (err) {
-        // Log error but continue with other employees
         console.error(`Failed to compute payslip for employee ${employeeId}:`, err);
       }
     }
 
-    // Aggregate totals from created payslips
-    const createdPayslips = await db.query.payslips.findMany({
-      where: eq(payslips.payrunId, payrun.id),
-      columns: { grossAmount: true, deductionAmount: true, netAmount: true },
-    });
+    const createdPayslips = await payrunRepository.findPayslipsForPayrun(payrun.id);
 
     for (const ps of createdPayslips) {
       totalGross += parseFloat(ps.grossAmount ?? '0');
@@ -158,15 +115,14 @@ export class PayrunService {
       totalNet += parseFloat(ps.netAmount ?? '0');
     }
 
-    // Update payrun with totals and mark as COMPUTED
-    const [updated] = await db.update(payruns).set({
+    const updated = await payrunRepository.update(payrun.id, {
       status: 'COMPUTED',
       totalGrossAmount: String(Math.round(totalGross * 100) / 100),
       totalDeductionAmount: String(Math.round(totalDeductions * 100) / 100),
       totalNetAmount: String(Math.round(totalNet * 100) / 100),
       totalPayslipCount: payslipCount,
       updatedAt: new Date(),
-    }).where(eq(payruns.id, payrun.id)).returning();
+    });
 
     return this.getPayrunById(updated.id);
   }
@@ -177,37 +133,25 @@ export class PayrunService {
     periodStart: string,
     periodEnd: string
   ) {
-    // 1. Find active contract
     const contract = await contractsService.findActiveContractForPeriod(employeeId, periodStart, periodEnd);
     if (!contract) {
       throw new Error(`No active contract found for employee ${employeeId} in period ${periodStart} - ${periodEnd}`);
     }
 
-    // 2. Get employee for validation warnings
-    const employee = await db.query.employees.findFirst({
-      where: eq(employees.id, employeeId),
-      columns: { bankName: true, bankAccountNumber: true, bankRoutingOrIfsc: true, bankAccountHolderName: true },
-    });
-
-    // 3. Get attendance summary
+    const employee = await payrunRepository.findEmployeeBankDetails(employeeId);
     const attendanceSummary = await attendanceService.getSummaryForEmployee(employeeId, periodStart, periodEnd);
-
-    // 4. Get approved leave days
     const approvedLeaveDays = await timeOffService.getApprovedLeaveDays(employeeId, periodStart, periodEnd);
 
-    // 5. Calculate planned working days
     const plannedDays = calculateWorkingDays(periodStart, periodEnd);
     const workedDays = attendanceSummary.presentDays;
     const unpaidLeaveDays = Math.max(0, plannedDays - workedDays - approvedLeaveDays);
 
-    // 6. Get salary structure rules
     const structure = contract.salaryStructure;
     const rules = structure.structureRules
       .map((sr) => sr.salaryRule)
       .filter((r) => r.isActive)
       .sort((a, b) => a.sequence - b.sequence);
 
-    // 7. Build initial salary context
     const contractWage = parseFloat(String(contract.wage)) || 0;
     const ctx: SalaryContext = {
       contract_wage: contractWage,
@@ -217,7 +161,6 @@ export class PayrunService {
       unpaid_leave_days: unpaidLeaveDays,
     };
 
-    // 8. Execute rules sequentially
     let grossAmount = 0;
     let deductionAmount = 0;
     const payslipLineData: Array<{
@@ -234,13 +177,12 @@ export class PayrunService {
 
     for (const rule of rules) {
       const amount = evaluateRule(rule, ctx);
-      ctx[rule.code] = amount; // Make this rule's result available to subsequent rules
+      ctx[rule.code] = amount;
 
       if (!rule.appearsOnPayslip) continue;
 
       const catCode = rule.category.code;
 
-      // Track gross vs deductions by category
       if (['DED', 'PF', 'TAX', 'TDS'].includes(catCode)) {
         deductionAmount += amount;
       } else if (!['GROSS', 'NET'].includes(catCode)) {
@@ -262,10 +204,8 @@ export class PayrunService {
       });
     }
 
-    // Final amounts
     const netAmount = grossAmount - deductionAmount;
 
-    // 9. Validation warnings
     const validationWarnings: string[] = [];
     if (!employee?.bankName || !employee?.bankAccountNumber) {
       validationWarnings.push('Missing bank details — payment may be delayed');
@@ -274,20 +214,14 @@ export class PayrunService {
       validationWarnings.push('No attendance records found for this period');
     }
 
-    // 10. Generate payslip number
     const payslipNumber = `PS-${payrunId.slice(0, 8).toUpperCase()}-${employeeId.slice(0, 6).toUpperCase()}`;
 
-    // 11. Check for duplicate payslip
-    const existing = await db.query.payslips.findFirst({
-      where: and(eq(payslips.payrunId, payrunId), eq(payslips.employeeId, employeeId)),
-    });
+    const existing = await payrunRepository.findPayslipByPayrunAndEmployee(payrunId, employeeId);
     if (existing) {
-      validationWarnings.push('Duplicate payslip detected for this employee in this payrun');
       return existing;
     }
 
-    // 12. Insert payslip
-    const [payslip] = await db.insert(payslips).values({
+    const payslip = await payrunRepository.createPayslip({
       payslipNumber,
       payrunId,
       employeeId,
@@ -305,11 +239,10 @@ export class PayrunService {
       deductionAmount: String(Math.round(deductionAmount * 100) / 100),
       netAmount: String(Math.round(netAmount * 100) / 100),
       validationWarnings,
-    }).returning();
+    });
 
-    // 13. Insert payslip lines
     if (payslipLineData.length > 0) {
-      await db.insert(payslipLines).values(
+      await payrunRepository.createPayslipLines(
         payslipLineData.map((line) => ({
           payslipId: payslip.id,
           ...line,
@@ -321,7 +254,7 @@ export class PayrunService {
   }
 
   async performAction(id: string, data: PayrunActionInput, actingUserId?: string) {
-    const payrun = await db.query.payruns.findFirst({ where: eq(payruns.id, id) });
+    const payrun = await payrunRepository.findById(id);
     if (!payrun) {
       throw new ApiError({ statuscode: httpStatus.NOT_FOUND, message: 'Payrun not found.', errorcode: 'PAYRUN_NOT_FOUND' });
     }
@@ -336,39 +269,35 @@ export class PayrunService {
       newStatus = 'VALIDATED';
       updateData.validatedByUserId = actingUserId ?? null;
       updateData.validatedAt = new Date();
-      // Also validate all payslips in the payrun
-      await db.update(payslips).set({ status: 'VALIDATED', updatedAt: new Date() }).where(eq(payslips.payrunId, id));
+      await payrunRepository.updatePayslipsStatusByPayrun(id, 'VALIDATED');
     } else if (data.action === 'MARK_PAID') {
       if (payrun.status !== 'VALIDATED') {
         throw new ApiError({ statuscode: httpStatus.BAD_REQUEST, message: 'Only validated payruns can be marked as paid.', errorcode: 'INVALID_STATUS' });
       }
       newStatus = 'PAID';
       updateData.paidAt = new Date();
-      // Mark all payslips as paid
-      await db.update(payslips).set({ status: 'PAID', updatedAt: new Date() }).where(eq(payslips.payrunId, id));
+      await payrunRepository.updatePayslipsStatusByPayrun(id, 'PAID');
     } else {
       newStatus = 'CANCELLED';
-      await db.update(payslips).set({ status: 'CANCELLED', updatedAt: new Date() }).where(eq(payslips.payrunId, id));
+      await payrunRepository.updatePayslipsStatusByPayrun(id, 'CANCELLED');
     }
 
     updateData.status = newStatus;
     if (data.notes) updateData.notes = data.notes;
 
-    await db.update(payruns).set(updateData).where(eq(payruns.id, id));
+    await payrunRepository.update(id, updateData);
     return this.getPayrunById(id);
   }
 
   async deletePayrun(id: string) {
-    const payrun = await db.query.payruns.findFirst({ where: eq(payruns.id, id) });
+    const payrun = await payrunRepository.findById(id);
     if (!payrun) {
       throw new ApiError({ statuscode: httpStatus.NOT_FOUND, message: 'Payrun not found.', errorcode: 'PAYRUN_NOT_FOUND' });
     }
     if (['VALIDATED', 'PAID'].includes(payrun.status)) {
       throw new ApiError({ statuscode: httpStatus.BAD_REQUEST, message: 'Cannot delete a validated or paid payrun.', errorcode: 'PAYRUN_LOCKED' });
     }
-    // Cascade deletes payslips + lines via DB foreign keys
-    const [deleted] = await db.delete(payruns).where(eq(payruns.id, id)).returning();
-    return deleted;
+    return await payrunRepository.delete(id);
   }
 }
 

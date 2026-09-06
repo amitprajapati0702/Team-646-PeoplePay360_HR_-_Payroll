@@ -17,9 +17,9 @@ import {
   ShieldCheck,
   X,
   AlertCircle,
-  Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AppShell } from '@/components/layout/AppShell';
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   ACTIVE: { bg: 'bg-emerald-950 text-emerald-300 border-emerald-800', text: 'Active Duty', icon: CheckCircle2 },
@@ -117,9 +117,13 @@ export default function ContractsPage() {
     .reduce((acc: number, c: any) => acc + Number(c.wage || 0), 0);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-white">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
+    <AppShell
+      title="Contract Management"
+      subtitle="Maintain employee contract history, wage agreements in INR (₹), working schedule bindings, and salary structures."
+    >
+      <div className="space-y-6 max-w-7xl mx-auto text-white">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-white">
             Contract Management
@@ -467,5 +471,6 @@ export default function ContractsPage() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

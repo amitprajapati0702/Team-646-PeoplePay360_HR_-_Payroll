@@ -8,6 +8,13 @@
       "when": 1788607758653,
       "tag": "0000_chief_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788640891856,
+      "tag": "0001_high_crystal",
+      "breakpoints": true
     }
   ]
 }

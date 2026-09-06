@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 
 export default function PayrunDetailPage() {
   const params = useParams();
@@ -116,9 +117,13 @@ export default function PayrunDetailPage() {
   const status = payrun.status || 'DRAFT';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-white">
-      {/* Top Back Navigation & Action Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
+    <AppShell
+      title="Payslip Management"
+      subtitle="Inspect itemized payslips, compute salary rules, validate batches, send email slips, and print official slips."
+    >
+      <div className="space-y-6 max-w-7xl mx-auto text-white">
+        {/* Top Back Navigation & Action Bar */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
         <div className="flex items-center gap-3">
           <Link
             href="/payroll"
@@ -603,5 +608,6 @@ export default function PayrunDetailPage() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { EmployeeTable } from '@/components/employees/EmployeeTable';
 import { EmployeeKanban } from '@/components/employees/EmployeeKanban';
@@ -153,14 +154,23 @@ export default function EmployeesPage() {
             </div>
           </div>
 
-          <Button
-            onClick={() => setCreateModalOpen(true)}
-            size="sm"
-            className="border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:border-zinc-500 shadow-md"
-          >
-            <UserPlus className="h-4 w-4 mr-1.5 text-white" />
-            <span>Add New Employee</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/employees/new"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all"
+            >
+              <UserPlus className="h-4 w-4 mr-1 text-white" />
+              <span>Add Employee (Page)</span>
+            </Link>
+            <Button
+              onClick={() => setCreateModalOpen(true)}
+              size="sm"
+              className="border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:border-zinc-500 shadow-md cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4 mr-1.5 text-white" />
+              <span>Quick Add (Modal)</span>
+            </Button>
+          </div>
         </div>
 
         {/* View Mode Switching */}

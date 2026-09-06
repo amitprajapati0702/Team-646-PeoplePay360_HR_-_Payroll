@@ -9,7 +9,7 @@ import { connectDatabase,disconnectDatabase,checkDatabaseHealth } from './infras
 
 async function bootstrap(): Promise<void> {
   try {
-    logger.info('🚀 Starting AuthForge...');
+    logger.info('🚀 Starting PeoplePay360...');
 
     await connectDatabase();
 

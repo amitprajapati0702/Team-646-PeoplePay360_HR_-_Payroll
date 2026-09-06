@@ -1,8 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/providers/AuthProvider';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { Loader2 } from 'lucide-react';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -22,6 +25,26 @@ export function AppShell({
   onSearchChange,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isAuthenticated, token } = useAuth();
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('pp360_token') : null;
+    if (!storedToken && !token) {
+      router.replace('/login');
+    }
+  }, [token, router]);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-white">
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex">

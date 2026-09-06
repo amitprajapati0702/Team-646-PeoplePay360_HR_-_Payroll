@@ -1,63 +1,63 @@
 import type { Request, Response, NextFunction } from 'express';
 import { authService } from '../modules/auth/auth.service.js';
+import { hasPermission, ROLE_HIERARCHY, type Permission, type UserRole } from '../modules/auth/rbac.js';
 import ApiError from '../utils/Apierror.js';
 import httpStatus from '../utils/http-status.js';
-
-// Extend Express Request to carry authenticated user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-        role: string;
-        employeeId?: string | null;
-      };
-    }
-  }
-}
-
-type UserRole = 'EMPLOYEE' | 'HR_MANAGER' | 'HR_PAYROLL_USER' | 'HR_PAYROLL_MANAGER' | 'ADMIN';
-
-const ROLE_HIERARCHY: Record<UserRole, number> = {
-  EMPLOYEE: 1,
-  HR_MANAGER: 2,
-  HR_PAYROLL_USER: 3,
-  HR_PAYROLL_MANAGER: 4,
-  ADMIN: 5,
-};
+import '../types/express.d.js';
 
 /**
- * Middleware: Authenticate request via Bearer JWT token.
- * Attaches decoded user to req.user.
+ * Middleware: Authenticate request via Bearer JWT token or cookie.
+ * Validates session active state and attaches user context to req.user.
  */
-export function authenticate(req: Request, _res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
+export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  try {
+    let token: string | undefined;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new ApiError({
-      statuscode: httpStatus.UNAUTHORIZED,
-      message: 'Authentication required. Please provide a valid token.',
-      errorcode: 'MISSING_TOKEN',
-    });
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.cookies?.accessToken) {
+      token = req.cookies.accessToken;
+    }
+
+    if (!token) {
+      throw new ApiError({
+        statuscode: httpStatus.UNAUTHORIZED,
+        message: 'Authentication required. Please provide a valid access token.',
+        errorcode: 'MISSING_TOKEN',
+      });
+    }
+
+    const payload = authService.verifyToken(token);
+
+    // Validate that session has not been revoked
+    if (payload.sessionId) {
+      const isSessionActive = await authService.validateSession(payload.sessionId, payload.sub);
+      if (!isSessionActive) {
+        throw new ApiError({
+          statuscode: httpStatus.UNAUTHORIZED,
+          message: 'Your session has been terminated or expired. Please sign in again.',
+          errorcode: 'SESSION_REVOKED',
+        });
+      }
+    }
+
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      employeeId: payload.employeeId,
+      sessionId: payload.sessionId,
+    };
+
+    next();
+  } catch (err) {
+    next(err);
   }
-
-  const token = authHeader.split(' ')[1];
-  const payload = authService.verifyToken(token);
-
-  req.user = {
-    id: payload.sub,
-    email: payload.email,
-    role: payload.role,
-    employeeId: payload.employeeId,
-  };
-
-  next();
 }
 
 /**
  * Middleware factory: Requires the authenticated user to have one of the specified roles.
- * Supports minimum-role check (any role >= minimum level passes).
  */
 export function requireRole(allowedRoles: UserRole[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -83,7 +83,8 @@ export function requireRole(allowedRoles: UserRole[]) {
 }
 
 /**
- * Middleware: Requires minimum role level (ADMIN > HR_PAYROLL_MANAGER > HR_PAYROLL_USER > HR_MANAGER > EMPLOYEE)
+ * Middleware: Requires minimum role level in the hierarchy:
+ * ADMIN (5) > HR_PAYROLL_MANAGER (4) > HR_PAYROLL_USER (3) > HR_MANAGER (2) > EMPLOYEE (1)
  */
 export function requireMinRole(minimumRole: UserRole) {
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -104,6 +105,34 @@ export function requireMinRole(minimumRole: UserRole) {
         message: `Access denied. Minimum required role: ${minimumRole}.`,
         errorcode: 'INSUFFICIENT_PERMISSIONS',
       });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Middleware: Fine-grained RBAC permission check.
+ * Verifies that the user's role possesses all required permissions.
+ */
+export function requirePermission(...requiredPermissions: Permission[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      throw new ApiError({
+        statuscode: httpStatus.UNAUTHORIZED,
+        message: 'Authentication required.',
+        errorcode: 'MISSING_TOKEN',
+      });
+    }
+
+    for (const permission of requiredPermissions) {
+      if (!hasPermission(req.user.role, permission)) {
+        throw new ApiError({
+          statuscode: httpStatus.FORBIDDEN,
+          message: `Access denied. You lack the required permission: ${permission}.`,
+          errorcode: 'INSUFFICIENT_PERMISSIONS',
+        });
+      }
     }
 
     next();

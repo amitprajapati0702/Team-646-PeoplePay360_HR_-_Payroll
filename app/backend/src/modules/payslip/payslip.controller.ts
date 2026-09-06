@@ -12,7 +12,11 @@ export const listPayslipsForPayrun = asyncHandler(async (req: Request, res: Resp
 });
 
 export const listPayslipsForEmployee = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ success: true, data: await payslipService.listPayslipsForEmployee(req.params.employeeId) });
+  let targetEmpId = req.params.employeeId;
+  if (req.user?.role === 'EMPLOYEE' && req.user.employeeId) {
+    targetEmpId = req.user.employeeId;
+  }
+  res.json({ success: true, data: await payslipService.listPayslipsForEmployee(targetEmpId) });
 });
 
 export const sendPayslipEmail = asyncHandler(async (req: Request, res: Response) => {
