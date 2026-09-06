@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -28,15 +29,25 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   CANCELLED: { bg: 'bg-rose-950 text-rose-300 border-rose-800', text: 'Terminated', icon: X },
 };
 
-export default function ContractsPage() {
+function ContractsContent() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const employeeIdParam = searchParams.get('employeeId') || '';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(employeeIdParam);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (employeeIdParam) {
+      setSelectedEmployeeFilter(employeeIdParam);
+    }
+  }, [employeeIdParam]);
 
   // Form State
   const [formData, setFormData] = useState({
-    employeeId: '',
+    employeeId: employeeIdParam || '',
     structureId: '',
     scheduleId: '',
     contractType: 'FULL_TIME',
@@ -99,14 +110,17 @@ export default function ContractsPage() {
     onError: (err: any) => toast.error(err?.message || 'Failed to create contract'),
   });
 
-  const contracts = contractsData?.contracts || [];
-  const employees = employeesData?.employees || [];
-  const structures = structuresData?.structures || [];
-  const schedules = schedulesData?.workingSchedules || [];
+  const contracts = Array.isArray(contractsData) ? contractsData : (contractsData?.contracts || contractsData?.data || []);
+  const employees = Array.isArray(employeesData) ? employeesData : (employeesData?.employees || employeesData?.data || []);
+  const structures = Array.isArray(structuresData) ? structuresData : (structuresData?.structures || structuresData?.data || []);
+  const schedules = Array.isArray(schedulesData) ? schedulesData : (schedulesData?.workingSchedules || schedulesData?.data || []);
 
   const filteredContracts = contracts.filter((c: any) => {
-    const name = `${c.employee?.firstName} ${c.employee?.lastName}`.toLowerCase();
-    const code = (c.contractCode || c.contractNumber || '').toLowerCase();
+    if (selectedEmployeeFilter && c.employeeId !== selectedEmployeeFilter) {
+      return false;
+    }
+    const name = `${c.employee?.firstName || ''} ${c.employee?.lastName || ''}`.toLowerCase();
+    const code = (c.contractReference || c.contractCode || c.contractNumber || '').toLowerCase();
     const search = searchTerm.toLowerCase();
     return name.includes(search) || code.includes(search);
   });
@@ -136,7 +150,7 @@ export default function ContractsPage() {
         <button
           onClick={() => {
             setFormData({
-              employeeId: employees[0]?.id || '',
+              employeeId: selectedEmployeeFilter || employees[0]?.id || '',
               structureId: structures[0]?.id || '',
               scheduleId: schedules[0]?.id || '',
               contractType: 'FULL_TIME',
@@ -190,15 +204,39 @@ export default function ContractsPage() {
 
       {/* Search & Filter */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 shadow-md">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search employee or contract code..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
-          />
+        <div className="flex flex-1 items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search employee or contract code..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
+            />
+          </div>
+
+          {selectedEmployeeFilter && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-800 text-xs text-emerald-300">
+              <span>
+                Employee:{' '}
+                <strong className="text-white">
+                  {(() => {
+                    const emp = employees.find((e: any) => e.id === selectedEmployeeFilter);
+                    return emp ? `${emp.firstName} ${emp.lastName}` : 'Selected';
+                  })()}
+                </strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeFilter('')}
+                className="p-0.5 hover:bg-emerald-800/50 rounded text-zinc-400 hover:text-white transition-colors"
+                title="Clear employee filter"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         <select
@@ -346,7 +384,20 @@ export default function ContractsPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                createMutation.mutate(formData);
+                const selEmp = employees.find((emp: any) => emp.id === formData.employeeId);
+                createMutation.mutate({
+                  employeeId: formData.employeeId,
+                  departmentId: selEmp?.departmentId || undefined,
+                  jobPositionId: selEmp?.jobPositionId || undefined,
+                  salaryStructureId: formData.structureId,
+                  workingScheduleId: formData.scheduleId || selEmp?.workingScheduleId || undefined,
+                  wage: Number(formData.wage),
+                  contractType: formData.contractType,
+                  startDate: formData.startDate,
+                  endDate: formData.endDate || null,
+                  status: formData.status || 'ACTIVE',
+                  notes: formData.terms || null,
+                });
               }}
               className="mt-4 space-y-4"
             >
@@ -472,5 +523,13 @@ export default function ContractsPage() {
       )}
     </div>
     </AppShell>
+  );
+}
+
+export default function ContractsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500 text-sm">Loading contracts...</div>}>
+      <ContractsContent />
+    </Suspense>
   );
 }

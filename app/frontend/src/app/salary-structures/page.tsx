@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/providers/AuthProvider';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/layout/AppShell';
 import {
@@ -21,6 +22,7 @@ import {
   ListOrdered,
   X,
   PlusCircle,
+  Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +36,10 @@ const CATEGORY_BADGES: Record<string, { bg: string; text: string; label: string 
 
 export default function SalaryStructuresPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canEdit = ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_MANAGER'].includes(user?.role || '');
+  const isReadOnly = user?.role === 'HR_PAYROLL_USER';
+
   const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewStructureModalOpen, setIsNewStructureModalOpen] = useState(false);
@@ -67,7 +73,7 @@ export default function SalaryStructuresPage() {
     },
   });
 
-  const structures = structuresData?.structures || [];
+  const structures = Array.isArray(structuresData) ? structuresData : (structuresData?.structures || structuresData?.data || []);
   const activeStructure = structures.find((s: any) => s.id === selectedStructureId) || structures[0];
 
   // Fetch detailed active structure with rules
@@ -76,7 +82,7 @@ export default function SalaryStructuresPage() {
     queryFn: async () => {
       if (!activeStructure?.id) return null;
       const res = await apiClient.get<any>(`/salary-structures/${activeStructure.id}`);
-      return res.data;
+      return res?.data || res;
     },
     enabled: !!activeStructure?.id,
   });
@@ -92,7 +98,7 @@ export default function SalaryStructuresPage() {
       setIsNewStructureModalOpen(false);
       setStructureForm({ name: '', code: '', description: '' });
       queryClient.invalidateQueries({ queryKey: ['salary-structures'] });
-      setSelectedStructureId(newStruct.id);
+      setSelectedStructureId(newStruct?.id || newStruct?.data?.id);
     },
     onError: (err: any) => toast.error(err?.message || 'Failed to create structure'),
   });
@@ -100,12 +106,29 @@ export default function SalaryStructuresPage() {
   // Add Rule Mutation
   const addRuleMutation = useMutation({
     mutationFn: async ({ structureId, data }: { structureId: string; data: any }) => {
-      const createdRule = await apiClient.post<any>('/salary-structures/rules', data);
+      const payload = {
+        name: data.name,
+        code: data.code,
+        categoryId: data.category,
+        category: data.category,
+        computationType: data.calculationType,
+        calculationType: data.calculationType,
+        fixedAmount: Number(data.amount || 0),
+        amount: Number(data.amount || 0),
+        percentage: Number(data.percentage || 0),
+        percentageBaseRuleCode: data.baseRuleCode || undefined,
+        baseRuleCode: data.baseRuleCode || undefined,
+        sequence: Number(data.sequence || 10),
+        conditionExpression: data.condition || undefined,
+      };
+      const createdRule = await apiClient.post<any>('/salary-structures/rules', payload);
+      const ruleId = createdRule?.data?.id || createdRule?.id;
       await apiClient.post(`/salary-structures/${structureId}/rules`, {
-        ruleId: createdRule.data.id,
-        sequence: data.sequence,
+        salaryRuleId: ruleId,
+        ruleId: ruleId,
+        sequenceOverride: Number(data.sequence || 10),
       });
-      return createdRule.data;
+      return createdRule;
     },
     onSuccess: () => {
       toast.success('Rule attached to structure successfully');
@@ -156,21 +179,36 @@ export default function SalaryStructuresPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-white">
-              Salary Structures & Calculation Rules
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-black tracking-tight text-white">
+                Salary Structures & Calculation Rules
+              </h1>
+              {isReadOnly && (
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-700 text-[11px] font-semibold text-zinc-300">
+                  <Lock className="h-3 w-3 text-zinc-400" />
+                  Read-Only Mode
+                </span>
+              )}
+            </div>
             <p className="text-xs text-zinc-400 mt-1">
               Configure dynamic calculation formulas, statutory allowances, tax deductions, and gross-to-net sequencing.
             </p>
           </div>
 
-          <button
-            onClick={() => setIsNewStructureModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-          >
-            <Plus className="h-4 w-4 text-white" />
-            <span>Create Structure</span>
-          </button>
+          {canEdit ? (
+            <button
+              onClick={() => setIsNewStructureModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+            >
+              <Plus className="h-4 w-4 text-white" />
+              <span>Create Structure</span>
+            </button>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-500">
+              <ShieldCheck className="h-4 w-4 text-zinc-500" />
+              <span>Read-only access</span>
+            </div>
+          )}
         </div>
 
         {/* Main Grid: Left List + Right Detail */}
@@ -238,13 +276,15 @@ export default function SalaryStructuresPage() {
                     <p className="text-xs text-zinc-400 mt-0.5">{activeStructure.description}</p>
                   </div>
 
-                  <button
-                    onClick={() => setIsAddRuleModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors cursor-pointer self-start sm:self-auto"
-                  >
-                    <PlusCircle className="h-3.5 w-3.5 text-zinc-300" />
-                    <span>Add Rule</span>
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => setIsAddRuleModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors cursor-pointer self-start sm:self-auto"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 text-zinc-300" />
+                      <span>Add Rule</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Rules List Table */}
@@ -318,18 +358,24 @@ export default function SalaryStructuresPage() {
                                     {calcDisplay}
                                   </td>
                                   <td className="px-4 py-3 whitespace-nowrap text-right text-xs">
-                                    <button
-                                      onClick={() =>
-                                        removeRuleMutation.mutate({
-                                          structureId: activeStructure.id,
-                                          ruleId: rule.id,
-                                        })
-                                      }
-                                      className="text-zinc-500 hover:text-rose-400 transition-colors p-1 cursor-pointer"
-                                      title="Remove rule"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                    {canEdit ? (
+                                      <button
+                                        onClick={() =>
+                                          removeRuleMutation.mutate({
+                                            structureId: activeStructure.id,
+                                            ruleId: rule.id,
+                                          })
+                                        }
+                                        className="text-zinc-500 hover:text-rose-400 transition-colors p-1 cursor-pointer"
+                                        title="Remove rule"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    ) : (
+                                      <span className="text-zinc-600 inline-block p-1" title="Read only">
+                                        <Lock className="h-3.5 w-3.5 text-zinc-600" />
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               );

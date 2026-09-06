@@ -214,6 +214,14 @@ export class PayrunService {
       validationWarnings.push('No attendance records found for this period');
     }
 
+    // Duplicate payslip detection for the same employee in the same period
+    const overlapping = await payrunRepository.findOverlappingPayslips(employeeId, periodStart, periodEnd, payrunId);
+    if (overlapping.length > 0) {
+      validationWarnings.push(
+        `Duplicate payslip detected: Employee already has ${overlapping.length} payslip(s) in an overlapping period (${overlapping.map((o) => o.payslipNumber).join(', ')})`
+      );
+    }
+
     const payslipNumber = `PS-${payrunId.slice(0, 8).toUpperCase()}-${employeeId.slice(0, 6).toUpperCase()}`;
 
     const existing = await payrunRepository.findPayslipByPayrunAndEmployee(payrunId, employeeId);

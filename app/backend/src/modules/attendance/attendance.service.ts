@@ -94,7 +94,8 @@ export class AttendanceService {
   }
 
   async createAttendance(data: CreateAttendanceInput, actingUserId?: string) {
-    const existing = await attendanceRepository.findByEmployeeAndDate(data.employeeId, data.attendanceDate);
+    const attDate = data.attendanceDate || data.date || new Date().toISOString().split('T')[0];
+    const existing = await attendanceRepository.findByEmployeeAndDate(data.employeeId, attDate);
 
     if (existing) {
       throw new ApiError({
@@ -104,19 +105,44 @@ export class AttendanceService {
       });
     }
 
-    const workedHours = computeWorkedHours(data.checkIn, data.checkOut);
+    let checkInDate: Date;
+    if (data.checkIn) {
+      checkInDate = new Date(data.checkIn.includes('T') ? data.checkIn : `${attDate}T${data.checkIn}:00.000Z`);
+    } else if (data.checkInTime) {
+      checkInDate = new Date(`${attDate}T${data.checkInTime}:00.000Z`);
+    } else {
+      checkInDate = new Date(`${attDate}T09:00:00.000Z`);
+    }
+
+    let checkOutDate: Date | null = null;
+    if (data.checkOut) {
+      checkOutDate = new Date(data.checkOut.includes('T') ? data.checkOut : `${attDate}T${data.checkOut}:00.000Z`);
+    } else if (data.checkOutTime) {
+      checkOutDate = new Date(`${attDate}T${data.checkOutTime}:00.000Z`);
+    }
+
+    const computed = computeWorkedHours(checkInDate, checkOutDate);
+    const workedHours = data.workedHours !== undefined ? data.workedHours : computed;
+    const overtimeHours = data.overtimeHours !== undefined ? data.overtimeHours : (workedHours > 8 ? workedHours - 8 : 0);
+
+    let status: 'PRESENT' | 'LATE' | 'HALF_DAY' | 'ABSENT' | 'OVERTIME' | 'EXCEPTION' = 'PRESENT';
+    if (data.status === 'ON_LEAVE') {
+      status = 'EXCEPTION';
+    } else if (data.status) {
+      status = data.status;
+    }
 
     return await attendanceRepository.create({
       employeeId: data.employeeId,
-      attendanceDate: data.attendanceDate,
-      checkIn: new Date(data.checkIn),
-      checkOut: data.checkOut ? new Date(data.checkOut) : null,
+      attendanceDate: attDate,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
       workedHours: String(workedHours),
-      overtimeHours: workedHours > 8 ? String(workedHours - 8) : '0.00',
-      status: data.status ?? 'PRESENT',
+      overtimeHours: String(Math.round(overtimeHours * 100) / 100),
+      status,
       isManuallyEdited: !!actingUserId,
       editedByUserId: actingUserId ?? null,
-      editReason: data.editReason ?? null,
+      editReason: data.editReason ?? data.notes ?? null,
     });
   }
 
@@ -130,23 +156,46 @@ export class AttendanceService {
       });
     }
 
-    const newCheckIn = data.checkIn ?? existing.checkIn?.toISOString() ?? '';
-    const newCheckOut = data.checkOut !== undefined ? data.checkOut : existing.checkOut?.toISOString();
-    const workedHours = computeWorkedHours(newCheckIn, newCheckOut);
+    const attDate = data.attendanceDate || data.date || existing.attendanceDate;
+    let checkInDate = existing.checkIn;
+    if (data.checkIn) {
+      checkInDate = new Date(data.checkIn.includes('T') ? data.checkIn : `${attDate}T${data.checkIn}:00.000Z`);
+    } else if (data.checkInTime) {
+      checkInDate = new Date(`${attDate}T${data.checkInTime}:00.000Z`);
+    }
+
+    let checkOutDate = existing.checkOut;
+    if (data.checkOut !== undefined) {
+      checkOutDate = data.checkOut
+        ? new Date(data.checkOut.includes('T') ? data.checkOut : `${attDate}T${data.checkOut}:00.000Z`)
+        : null;
+    } else if (data.checkOutTime !== undefined) {
+      checkOutDate = data.checkOutTime ? new Date(`${attDate}T${data.checkOutTime}:00.000Z`) : null;
+    }
+
+    const computed = computeWorkedHours(checkInDate, checkOutDate);
+    const workedHours = data.workedHours !== undefined ? data.workedHours : computed;
+    const overtimeHours = data.overtimeHours !== undefined ? data.overtimeHours : (workedHours > 8 ? workedHours - 8 : 0);
+
+    let status: 'PRESENT' | 'LATE' | 'HALF_DAY' | 'ABSENT' | 'OVERTIME' | 'EXCEPTION' = existing.status;
+    if (data.status === 'ON_LEAVE') {
+      status = 'EXCEPTION';
+    } else if (data.status) {
+      status = data.status;
+    }
 
     const updatePayload: Record<string, unknown> = {
       updatedAt: new Date(),
       isManuallyEdited: true,
       editedByUserId: actingUserId ?? null,
-      editReason: data.editReason ?? 'Manual HR correction',
+      editReason: data.editReason ?? data.notes ?? 'Manual HR correction',
+      attendanceDate: attDate,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
       workedHours: String(workedHours),
-      overtimeHours: workedHours > 8 ? String(workedHours - 8) : '0.00',
+      overtimeHours: String(Math.round(overtimeHours * 100) / 100),
+      status,
     };
-
-    if (data.attendanceDate !== undefined) updatePayload.attendanceDate = data.attendanceDate;
-    if (data.checkIn !== undefined) updatePayload.checkIn = new Date(data.checkIn);
-    if (data.checkOut !== undefined) updatePayload.checkOut = data.checkOut ? new Date(data.checkOut) : null;
-    if (data.status !== undefined) updatePayload.status = data.status;
 
     return await attendanceRepository.update(id, updatePayload);
   }

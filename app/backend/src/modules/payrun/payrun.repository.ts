@@ -1,9 +1,23 @@
 import { db } from '../../infrastructure/database/client.js';
 import { payruns, payslips, payslipLines, employees } from '../../infrastructure/database/schema/index.js';
-import { eq, and, desc, asc } from 'drizzle-orm';
+import { eq, and, desc, asc, lte, gte, ne } from 'drizzle-orm';
 import type { CreatePayrunInput, PayrunQueryInput } from './payrun.schema.js';
 
 export class PayrunRepository {
+  async findOverlappingPayslips(employeeId: string, periodStart: string, periodEnd: string, excludePayrunId?: string) {
+    const conditions = [
+      eq(payslips.employeeId, employeeId),
+      lte(payslips.periodStart, periodEnd),
+      gte(payslips.periodEnd, periodStart),
+    ];
+    if (excludePayrunId) {
+      conditions.push(ne(payslips.payrunId, excludePayrunId));
+    }
+    return await db.query.payslips.findMany({
+      where: and(...conditions),
+      columns: { id: true, payslipNumber: true, payrunId: true, periodStart: true, periodEnd: true },
+    });
+  }
   async findMany(query: PayrunQueryInput) {
     const conditions = [];
     if (query.status) conditions.push(eq(payruns.status, query.status));

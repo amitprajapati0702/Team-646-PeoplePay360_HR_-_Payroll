@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const createDepartmentSchema = z.object({
   code: z.string().trim().min(2).max(50),
   name: z.string().trim().min(1).max(150),
+  description: z.string().optional().nullable(),
   managerId: z.string().uuid().optional().nullable(),
   parentDepartmentId: z.string().uuid().optional().nullable(),
   isActive: z.boolean().default(true),
@@ -33,9 +34,13 @@ const scheduleLineSchema = z.object({
 
 export const createWorkingScheduleSchema = z.object({
   name: z.string().trim().min(1).max(150),
-  code: z.string().trim().min(1).max(50),
+  code: z.string().trim().min(1).max(50).optional(),
   scheduleType: z.string().default('STANDARD'),
-  totalWeeklyHours: z.number().min(0).max(168).default(40),
+  totalWeeklyHours: z.number().min(0).max(168).optional(),
+  hoursPerWeek: z.number().min(0).max(168).optional(),
+  hoursPerDay: z.number().min(0).max(24).optional(),
+  workingDays: z.array(z.string()).optional(),
+  description: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   lines: z.array(scheduleLineSchema).optional(),
 });

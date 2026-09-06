@@ -10,7 +10,7 @@ export const listContracts = asyncHandler(async (req: Request, res: Response) =>
     query.employeeId = req.user.employeeId;
   }
   const data = await contractsService.listContracts(query);
-  res.json({ success: true, message: 'Contracts fetched successfully', data });
+  res.json({ success: true, message: 'Contracts fetched successfully', data, contracts: data });
 });
 
 export const getContractById = asyncHandler(async (req: Request, res: Response) => {

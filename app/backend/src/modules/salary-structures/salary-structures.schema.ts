@@ -26,17 +26,22 @@ export const updateSalaryStructureSchema = createSalaryStructureSchema.partial()
 
 // ─── Salary Rules ───────────────────────────────────────────────
 export const createSalaryRuleSchema = z.object({
-  categoryId: z.string().uuid('Invalid category ID'),
+  categoryId: z.string().trim().optional(),
+  category: z.string().trim().optional(),
   name: z.string().trim().min(1).max(150),
   code: z.string().trim().min(1).max(50),
-  sequence: z.number().int().min(1).default(10),
+  sequence: z.coerce.number().int().min(1).default(10),
   appearsOnPayslip: z.boolean().default(true),
   computationType: z.enum(['FIXED', 'PERCENTAGE', 'FORMULA']).default('FIXED'),
-  fixedAmount: z.number().min(0).optional().nullable(),
-  percentage: z.number().min(0).max(100).optional().nullable(),
+  calculationType: z.preprocess(emptyToNull, z.string().optional().nullable()),
+  fixedAmount: z.preprocess(emptyToNull, z.coerce.number().min(0).optional().nullable()),
+  amount: z.preprocess(emptyToNull, z.coerce.number().min(0).optional().nullable()),
+  percentage: z.preprocess(emptyToNull, z.coerce.number().min(0).max(100).optional().nullable()),
   percentageBaseRuleCode: z.preprocess(emptyToNull, z.string().max(50).optional().nullable()),
+  baseRuleCode: z.preprocess(emptyToNull, z.string().max(50).optional().nullable()),
   formulaExpression: z.preprocess(emptyToNull, z.string().max(2000).optional().nullable()),
   conditionExpression: z.preprocess(emptyToNull, z.string().max(2000).optional().nullable()),
+  condition: z.preprocess(emptyToNull, z.string().max(2000).optional().nullable()),
   isActive: z.boolean().default(true),
 });
 
@@ -44,8 +49,10 @@ export const updateSalaryRuleSchema = createSalaryRuleSchema.partial().omit({ ca
 
 // ─── Structure ↔ Rule Association ──────────────────────────────
 export const assignRuleToStructureSchema = z.object({
-  salaryRuleId: z.string().uuid('Invalid salary rule ID'),
-  sequenceOverride: z.number().int().min(1).optional().nullable(),
+  salaryRuleId: z.preprocess(emptyToNull, z.string().uuid().optional().nullable()),
+  ruleId: z.preprocess(emptyToNull, z.string().uuid().optional().nullable()),
+  sequenceOverride: z.preprocess(emptyToNull, z.coerce.number().int().min(1).optional().nullable()),
+  sequence: z.preprocess(emptyToNull, z.coerce.number().int().min(1).optional().nullable()),
 });
 
 // ─── Shared ─────────────────────────────────────────────────────

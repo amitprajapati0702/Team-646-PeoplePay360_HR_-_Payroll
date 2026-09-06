@@ -5,7 +5,8 @@ import httpStatus from '../../utils/http-status.js';
 
 // Leave Types
 export const listLeaveTypes = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ success: true, message: 'Leave types retrieved', data: await timeOffService.listLeaveTypes(req.query as any) });
+  const data = await timeOffService.listLeaveTypes(req.query as any);
+  res.json({ success: true, message: 'Leave types retrieved', data, leaveTypes: data });
 });
 export const getLeaveTypeById = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Leave type retrieved', data: await timeOffService.getLeaveTypeById(req.params.id) });
@@ -26,7 +27,8 @@ export const listAllocations = asyncHandler(async (req: Request, res: Response) 
   if (req.user?.role === 'EMPLOYEE' && req.user.employeeId) {
     query.employeeId = req.user.employeeId;
   }
-  res.json({ success: true, message: 'Allocations retrieved', data: await timeOffService.listAllocations(query) });
+  const data = await timeOffService.listAllocations(query);
+  res.json({ success: true, message: 'Allocations retrieved', data, allocations: data });
 });
 export const getAllocationById = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Allocation retrieved', data: await timeOffService.getAllocationById(req.params.id) });
@@ -47,7 +49,8 @@ export const listRequests = asyncHandler(async (req: Request, res: Response) => 
   if (req.user?.role === 'EMPLOYEE' && req.user.employeeId) {
     query.employeeId = req.user.employeeId;
   }
-  res.json({ success: true, message: 'Leave requests retrieved', data: await timeOffService.listRequests(query) });
+  const data = await timeOffService.listRequests(query);
+  res.json({ success: true, message: 'Leave requests retrieved', data, requests: data });
 });
 export const getRequestById = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Leave request retrieved', data: await timeOffService.getRequestById(req.params.id) });

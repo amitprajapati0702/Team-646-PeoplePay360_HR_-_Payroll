@@ -1,6 +1,8 @@
 import { organizationRepository } from './organization.repository.js';
 import ApiError from '../../utils/Apierror.js';
 import httpStatus from '../../utils/http-status.js';
+import { redis } from '../../infrastructure/redis/client.js';
+import logger from '../../config/logger.js';
 import type {
   CreateDepartmentInput,
   UpdateDepartmentInput,
@@ -11,10 +13,53 @@ import type {
   ListQueryInput,
 } from './organization.schema.js';
 
+const CACHE_TTL = 60;
+
+async function getCached<T>(key: string): Promise<T | null> {
+  try {
+    if (redis.isOpen) {
+      const data = await redis.get(key);
+      if (data) return JSON.parse(data) as T;
+    }
+  } catch (err) {
+    logger.warn(err, `Redis cache get failed for ${key}`);
+  }
+  return null;
+}
+
+async function setCached(key: string, value: any, ttl = CACHE_TTL): Promise<void> {
+  try {
+    if (redis.isOpen) {
+      await redis.setEx(key, ttl, JSON.stringify(value));
+    }
+  } catch (err) {
+    logger.warn(err, `Redis cache set failed for ${key}`);
+  }
+}
+
+async function invalidateCache(pattern: string): Promise<void> {
+  try {
+    if (redis.isOpen) {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(keys);
+      }
+    }
+  } catch (err) {
+    logger.warn(err, `Redis cache invalidation failed for ${pattern}`);
+  }
+}
+
 export class OrganizationService {
   // ─── Departments ────────────────────────────────────────────────
   async listDepartments(query: ListQueryInput) {
-    return await organizationRepository.findDepartments(query);
+    const cacheKey = `cache:org:departments:${JSON.stringify(query)}`;
+    const cached = await getCached<any>(cacheKey);
+    if (cached) return cached;
+
+    const result = await organizationRepository.findDepartments(query);
+    await setCached(cacheKey, result);
+    return result;
   }
 
   async getDepartmentById(id: string) {
@@ -39,7 +84,9 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.createDepartment(data);
+    const created = await organizationRepository.createDepartment(data);
+    await invalidateCache('cache:org:departments:*');
+    return created;
   }
 
   async updateDepartment(id: string, data: UpdateDepartmentInput) {
@@ -52,7 +99,9 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.updateDepartment(id, data);
+    const updated = await organizationRepository.updateDepartment(id, data);
+    await invalidateCache('cache:org:departments:*');
+    return updated;
   }
 
   async deleteDepartment(id: string) {
@@ -65,12 +114,20 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.deleteDepartment(id);
+    const deleted = await organizationRepository.deleteDepartment(id);
+    await invalidateCache('cache:org:departments:*');
+    return deleted;
   }
 
   // ─── Job Positions ──────────────────────────────────────────────
   async listJobPositions(query: ListQueryInput & { departmentId?: string }) {
-    return await organizationRepository.findJobPositions(query);
+    const cacheKey = `cache:org:jobs:${JSON.stringify(query)}`;
+    const cached = await getCached<any>(cacheKey);
+    if (cached) return cached;
+
+    const result = await organizationRepository.findJobPositions(query);
+    await setCached(cacheKey, result);
+    return result;
   }
 
   async getJobPositionById(id: string) {
@@ -104,7 +161,9 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.createJobPosition(data);
+    const created = await organizationRepository.createJobPosition(data);
+    await invalidateCache('cache:org:jobs:*');
+    return created;
   }
 
   async updateJobPosition(id: string, data: UpdateJobPositionInput) {
@@ -117,7 +176,9 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.updateJobPosition(id, data);
+    const updated = await organizationRepository.updateJobPosition(id, data);
+    await invalidateCache('cache:org:jobs:*');
+    return updated;
   }
 
   async deleteJobPosition(id: string) {
@@ -130,12 +191,20 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.deleteJobPosition(id);
+    const deleted = await organizationRepository.deleteJobPosition(id);
+    await invalidateCache('cache:org:jobs:*');
+    return deleted;
   }
 
   // ─── Working Schedules ──────────────────────────────────────────
   async listWorkingSchedules(query: ListQueryInput) {
-    return await organizationRepository.findWorkingSchedules(query);
+    const cacheKey = `cache:org:schedules:${JSON.stringify(query)}`;
+    const cached = await getCached<any>(cacheKey);
+    if (cached) return cached;
+
+    const result = await organizationRepository.findWorkingSchedules(query);
+    await setCached(cacheKey, result);
+    return result;
   }
 
   async getWorkingScheduleById(id: string) {
@@ -151,26 +220,38 @@ export class OrganizationService {
   }
 
   async createWorkingSchedule(data: CreateWorkingScheduleInput) {
-    const codeExists = await organizationRepository.findWorkingScheduleByCode(data.code.toUpperCase());
+    const rawCode = (data.code || data.name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 30) || 'SCHED').toUpperCase();
+    let finalCode = rawCode;
+    const codeExists = await organizationRepository.findWorkingScheduleByCode(finalCode);
     if (codeExists) {
-      throw new ApiError({
-        statuscode: httpStatus.CONFLICT,
-        message: `Schedule code '${data.code}' already exists.`,
-        errorcode: 'SCHEDULE_CODE_EXISTS',
-      });
+      finalCode = `${rawCode}_${Math.floor(Math.random() * 1000)}`;
     }
+
+    const weeklyHours = data.totalWeeklyHours ?? data.hoursPerWeek ?? 40;
 
     const created = await organizationRepository.createWorkingSchedule({
       name: data.name,
-      code: data.code.toUpperCase(),
+      code: finalCode,
       scheduleType: data.scheduleType ?? 'STANDARD',
-      totalWeeklyHours: String(data.totalWeeklyHours ?? 40),
+      totalWeeklyHours: String(weeklyHours),
       isActive: data.isActive ?? true,
     });
 
-    if (data.lines?.length) {
+    const lines = data.lines?.length
+      ? data.lines
+      : (data.workingDays?.length
+          ? data.workingDays.map((day) => ({
+              dayOfWeek: day as any,
+              workFrom: '09:00',
+              workTo: '18:00',
+              breakDurationMinutes: 60,
+              dailyWorkingHours: data.hoursPerDay ?? 8,
+            }))
+          : []);
+
+    if (lines.length) {
       await organizationRepository.createScheduleLines(
-        data.lines.map((l) => ({
+        lines.map((l) => ({
           workingScheduleId: created.id,
           dayOfWeek: l.dayOfWeek,
           workFrom: l.workFrom,
@@ -181,6 +262,7 @@ export class OrganizationService {
       );
     }
 
+    await invalidateCache('cache:org:schedules:*');
     return this.getWorkingScheduleById(created.id);
   }
 
@@ -219,6 +301,7 @@ export class OrganizationService {
       }
     }
 
+    await invalidateCache('cache:org:schedules:*');
     return this.getWorkingScheduleById(id);
   }
 
@@ -232,7 +315,9 @@ export class OrganizationService {
       });
     }
 
-    return await organizationRepository.deleteWorkingSchedule(id);
+    const deleted = await organizationRepository.deleteWorkingSchedule(id);
+    await invalidateCache('cache:org:schedules:*');
+    return deleted;
   }
 }
 

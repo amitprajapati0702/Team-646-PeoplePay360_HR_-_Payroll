@@ -172,6 +172,7 @@ export class AuthService {
     });
 
     return {
+      token: accessToken,
       accessToken,
       refreshToken,
       user: {
@@ -248,6 +249,7 @@ export class AuthService {
     });
 
     return {
+      token: accessToken,
       accessToken,
       refreshToken,
       user: {
@@ -335,6 +337,7 @@ export class AuthService {
       .where(eq(sessions.id, session.id));
 
     return {
+      token: accessToken,
       accessToken,
       refreshToken: newRefreshToken,
       user: {

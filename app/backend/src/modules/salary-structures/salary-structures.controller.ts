@@ -5,7 +5,8 @@ import httpStatus from '../../utils/http-status.js';
 
 // Categories
 export const listCategories = asyncHandler(async (_req: Request, res: Response) => {
-  res.json({ success: true, data: await salaryStructuresService.listCategories() });
+  const data = await salaryStructuresService.listCategories();
+  res.json({ success: true, data, categories: data });
 });
 export const createCategory = asyncHandler(async (req: Request, res: Response) => {
   res.status(httpStatus.CREATED).json({ success: true, data: await salaryStructuresService.createCategory(req.body) });
@@ -13,7 +14,8 @@ export const createCategory = asyncHandler(async (req: Request, res: Response) =
 
 // Structures
 export const listStructures = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ success: true, data: await salaryStructuresService.listStructures(req.query as any) });
+  const data = await salaryStructuresService.listStructures(req.query as any);
+  res.json({ success: true, data, structures: data });
 });
 export const getStructureById = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, data: await salaryStructuresService.getStructureById(req.params.id) });
@@ -36,7 +38,8 @@ export const removeRule = asyncHandler(async (req: Request, res: Response) => {
 
 // Rules
 export const listRules = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ success: true, data: await salaryStructuresService.listRules(req.query as any) });
+  const data = await salaryStructuresService.listRules(req.query as any);
+  res.json({ success: true, data, rules: data });
 });
 export const getRuleById = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, data: await salaryStructuresService.getRuleById(req.params.id) });

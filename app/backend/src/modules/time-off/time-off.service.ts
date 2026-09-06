@@ -95,7 +95,24 @@ export class TimeOffService {
   }
 
   async createRequest(data: CreateLeaveRequestInput) {
-    return await timeOffRepository.createRequest(data);
+    let allocationId = data.timeOffAllocationId;
+
+    // Auto-resolve active approved allocation if not explicitly passed
+    if (!allocationId) {
+      const activeAllocations = await timeOffRepository.findAllocations({
+        employeeId: data.employeeId,
+        timeOffTypeId: data.timeOffTypeId,
+        status: 'APPROVED',
+      });
+      if (activeAllocations.length > 0) {
+        allocationId = activeAllocations[0].id;
+      }
+    }
+
+    return await timeOffRepository.createRequest({
+      ...data,
+      timeOffAllocationId: allocationId,
+    });
   }
 
   async approveRequest(id: string, data: ApproveRequestInput, actingUserId: string) {
@@ -119,9 +136,24 @@ export class TimeOffService {
       updatedAt: new Date(),
     });
 
-    // If approved and has allocation, deduct taken units
-    if (newStatus === 'APPROVED' && request.timeOffAllocationId) {
-      await timeOffRepository.deductTakenUnits(request.timeOffAllocationId, request.requestedUnits);
+    // If approved, ensure units are deducted from allocation
+    if (newStatus === 'APPROVED') {
+      let allocationId = request.timeOffAllocationId;
+      if (!allocationId) {
+        const activeAllocations = await timeOffRepository.findAllocations({
+          employeeId: request.employeeId,
+          timeOffTypeId: request.timeOffTypeId,
+          status: 'APPROVED',
+        });
+        if (activeAllocations.length > 0) {
+          allocationId = activeAllocations[0].id;
+          await timeOffRepository.updateRequest(id, { timeOffAllocationId: allocationId });
+        }
+      }
+
+      if (allocationId) {
+        await timeOffRepository.deductTakenUnits(allocationId, request.requestedUnits);
+      }
     }
 
     return updated;

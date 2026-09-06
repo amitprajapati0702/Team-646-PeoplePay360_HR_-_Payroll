@@ -59,15 +59,20 @@ export default function WorkingSchedulesPage() {
     onError: (err: any) => toast.error(err?.message || 'Failed to create schedule'),
   });
 
-  const schedules = schedulesData?.workingSchedules || [];
+  const schedules = Array.isArray(schedulesData)
+    ? schedulesData
+    : (schedulesData?.workingSchedules || (schedulesData as any)?.data || []);
   const daysList = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 
   const toggleDay = (day: string) => {
-    if (formData.workingDays.includes(day)) {
-      setFormData({ ...formData, workingDays: formData.workingDays.filter((d) => d !== day) });
-    } else {
-      setFormData({ ...formData, workingDays: [...formData.workingDays, day] });
-    }
+    const nextDays = formData.workingDays.includes(day)
+      ? formData.workingDays.filter((d) => d !== day)
+      : [...formData.workingDays, day];
+    setFormData({
+      ...formData,
+      workingDays: nextDays,
+      hoursPerWeek: nextDays.length * formData.hoursPerDay,
+    });
   };
 
   return (
@@ -194,20 +199,33 @@ export default function WorkingSchedulesPage() {
                     <input
                       type="number"
                       required
+                      min={1}
+                      max={24}
                       value={formData.hoursPerDay}
-                      onChange={(e) => setFormData({ ...formData, hoursPerDay: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const hpd = Number(e.target.value) || 0;
+                        setFormData({
+                          ...formData,
+                          hoursPerDay: hpd,
+                          hoursPerWeek: formData.workingDays.length * hpd,
+                        });
+                      }}
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-mono text-white focus:border-zinc-400 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 mb-1">Hours / Week *</label>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      Hours / Week <span className="text-[10px] text-emerald-400 font-normal">(Auto)</span>
+                    </label>
                     <input
                       type="number"
-                      required
+                      readOnly
                       value={formData.hoursPerWeek}
-                      onChange={(e) => setFormData({ ...formData, hoursPerWeek: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-mono text-white focus:border-zinc-400 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none cursor-not-allowed"
                     />
+                    <p className="text-[10px] text-zinc-500 mt-1">
+                      {formData.workingDays.length} days × {formData.hoursPerDay}h
+                    </p>
                   </div>
                 </div>
 

@@ -28,18 +28,21 @@ export interface ApiResponse<T> {
 
 export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined | null>;
+  _retry?: boolean;
 }
 
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('pp360_token');
+  const token = localStorage.getItem('pp360_token');
+  if (!token || token === 'undefined' || token === 'null' || token.trim() === '') return null;
+  return token;
 }
 
 export async function apiClient<T = ApiResponse<unknown>>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { params, headers, ...customConfig } = options;
+  const { params, headers, _retry, ...customConfig } = options;
 
   let url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
@@ -57,13 +60,16 @@ export async function apiClient<T = ApiResponse<unknown>>(
   }
 
   const token = getAuthToken();
-  const defaultHeaders: HeadersInit = {
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+  if (token) {
+    defaultHeaders['Authorization'] = `Bearer ${token}`;
+  }
 
   const response = await fetch(url, {
+    credentials: 'include',
     ...customConfig,
     headers: {
       ...defaultHeaders,
@@ -73,6 +79,41 @@ export async function apiClient<T = ApiResponse<unknown>>(
 
   if (response.status === 204) {
     return {} as T;
+  }
+
+  // Automatic token refresh & retry on 401 for authenticated endpoints
+  if (
+    response.status === 401 &&
+    !_retry &&
+    !endpoint.includes('/auth/login') &&
+    !endpoint.includes('/auth/refresh') &&
+    !endpoint.includes('/auth/register')
+  ) {
+    try {
+      const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (refreshRes.ok) {
+        const refreshJson = await refreshRes.json();
+        const newAccessToken =
+          refreshJson.data?.accessToken || refreshJson.data?.token;
+        if (newAccessToken && typeof window !== 'undefined') {
+          localStorage.setItem('pp360_token', newAccessToken);
+          return apiClient<T>(endpoint, {
+            ...options,
+            _retry: true,
+            headers: {
+              ...headers,
+              Authorization: `Bearer ${newAccessToken}`,
+            },
+          });
+        }
+      }
+    } catch {
+      // Fall through to error handling
+    }
   }
 
   const data = await response.json().catch(() => ({}));

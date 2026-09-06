@@ -108,8 +108,12 @@ export default function DepartmentsPage() {
     },
   });
 
-  const departments: DepartmentItem[] = deptData?.departments || [];
-  const jobs: JobPositionItem[] = jobsData?.jobPositions || [];
+  const departments: DepartmentItem[] = Array.isArray(deptData)
+    ? (deptData as DepartmentItem[])
+    : (deptData?.departments || (deptData as any)?.data || []);
+  const jobs: JobPositionItem[] = Array.isArray(jobsData)
+    ? (jobsData as JobPositionItem[])
+    : (jobsData?.jobPositions || (jobsData as any)?.data || []);
 
   const filteredDepts = departments.filter((d: DepartmentItem) =>
     d.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||

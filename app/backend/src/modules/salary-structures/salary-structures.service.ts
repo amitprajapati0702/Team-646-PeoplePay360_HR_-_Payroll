@@ -99,11 +99,20 @@ export class SalaryStructuresService {
 
   // ─── Assign/Remove Rules from Structure ─────────────────────────
   async assignRuleToStructure(structureId: string, data: AssignRuleInput) {
+    const targetRuleId = data.salaryRuleId || (data as any).ruleId;
+    if (!targetRuleId) {
+      throw new ApiError({
+        statuscode: httpStatus.BAD_REQUEST,
+        message: 'Rule ID is required to assign to structure.',
+        errorcode: 'MISSING_RULE_ID',
+      });
+    }
+
     // Check if already assigned
     const existing = await db.query.salaryStructureRules.findFirst({
       where: and(
         eq(salaryStructureRules.salaryStructureId, structureId),
-        eq(salaryStructureRules.salaryRuleId, data.salaryRuleId)
+        eq(salaryStructureRules.salaryRuleId, targetRuleId)
       ),
     });
     if (existing) {
@@ -111,8 +120,8 @@ export class SalaryStructuresService {
     }
     const [created] = await db.insert(salaryStructureRules).values({
       salaryStructureId: structureId,
-      salaryRuleId: data.salaryRuleId,
-      sequenceOverride: data.sequenceOverride ?? null,
+      salaryRuleId: targetRuleId,
+      sequenceOverride: data.sequenceOverride ?? (data as any).sequence ?? null,
     }).returning();
     return created;
   }
@@ -162,18 +171,48 @@ export class SalaryStructuresService {
     });
     if (exists) throw new ApiError({ statuscode: httpStatus.CONFLICT, message: `Rule code '${data.code}' already exists.`, errorcode: 'RULE_CODE_EXISTS' });
 
+    let finalCategoryId = data.categoryId;
+    const catCode = (data.categoryId || (data as any).category || 'BASIC').toUpperCase();
+
+    // If finalCategoryId is not a UUID, find category by code
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalCategoryId || '');
+    if (!isUUID) {
+      const foundCat = await db.query.salaryRuleCategories.findFirst({
+        where: eq(salaryRuleCategories.code, catCode),
+      });
+      if (foundCat) {
+        finalCategoryId = foundCat.id;
+      } else {
+        const anyCat = await db.query.salaryRuleCategories.findFirst();
+        if (anyCat) finalCategoryId = anyCat.id;
+      }
+    }
+
+    if (!finalCategoryId) {
+      throw new ApiError({
+        statuscode: httpStatus.BAD_REQUEST,
+        message: 'A valid category is required for salary rules.',
+        errorcode: 'CATEGORY_NOT_FOUND',
+      });
+    }
+
+    const compType = (data.computationType || (data as any).calculationType || 'FIXED') as 'FIXED' | 'PERCENTAGE' | 'FORMULA';
+    const rawAmt = data.fixedAmount != null ? data.fixedAmount : (data as any).amount;
+    const baseCode = data.percentageBaseRuleCode || (data as any).baseRuleCode || null;
+    const condition = data.conditionExpression || (data as any).condition || null;
+
     const [created] = await db.insert(salaryRules).values({
-      categoryId: data.categoryId,
+      categoryId: finalCategoryId,
       name: data.name,
       code: data.code.toUpperCase(),
       sequence: data.sequence ?? 10,
       appearsOnPayslip: data.appearsOnPayslip ?? true,
-      computationType: data.computationType ?? 'FIXED',
-      fixedAmount: data.fixedAmount != null ? String(data.fixedAmount) : '0.00',
+      computationType: compType,
+      fixedAmount: rawAmt != null ? String(rawAmt) : '0.00',
       percentage: data.percentage != null ? String(data.percentage) : '0.000',
-      percentageBaseRuleCode: data.percentageBaseRuleCode ?? null,
+      percentageBaseRuleCode: baseCode,
       formulaExpression: data.formulaExpression ?? null,
-      conditionExpression: data.conditionExpression ?? null,
+      conditionExpression: condition,
       isActive: data.isActive ?? true,
     }).returning();
     return created;

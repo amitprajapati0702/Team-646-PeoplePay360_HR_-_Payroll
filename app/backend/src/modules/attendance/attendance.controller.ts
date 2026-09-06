@@ -11,7 +11,7 @@ export const listAttendance = asyncHandler(async (req: Request, res: Response) =
     query.employeeId = req.user.employeeId;
   }
   const data = await attendanceService.listAttendance(query);
-  res.json({ success: true, message: 'Attendance records fetched', data });
+  res.json({ success: true, message: 'Attendance records fetched', data, attendances: data });
 });
 
 export const getAttendanceById = asyncHandler(async (req: Request, res: Response) => {

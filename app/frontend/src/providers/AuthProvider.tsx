@@ -56,23 +56,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(TOKEN_KEY);
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored || stored === 'undefined' || stored === 'null') {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return stored;
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const login = useCallback(async (email: string, password: string) => {
-    const response = await apiClient<{ success: boolean; data: { token: string; user: AuthUser } }>(
-      '/auth/login',
-      { method: 'POST', body: JSON.stringify({ email, password }) }
-    );
+  // Sync profile on mount if token exists
+  useEffect(() => {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (stored && stored !== 'undefined' && stored !== 'null') {
+      apiClient<{ success: boolean; data: { user: AuthUser } }>('/auth/me')
+        .then((res) => {
+          if (res.data?.user) {
+            setUser(res.data.user);
+            localStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
+          }
+        })
+        .catch(() => {
+          // Handled by silent refresh or login
+        });
+    }
+  }, []);
 
-    const { token: newToken, user: newUser } = response.data;
-    localStorage.setItem(TOKEN_KEY, newToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
+  const login = useCallback(async (email: string, password: string) => {
+    const response = await apiClient<{
+      success: boolean;
+      data: { token?: string; accessToken?: string; user: AuthUser };
+    }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+
+    const resData = response.data;
+    const newToken = resData.accessToken || resData.token;
+    const newUser = resData.user;
+
+    if (newToken) {
+      localStorage.setItem(TOKEN_KEY, newToken);
+      setToken(newToken);
+    }
+    if (newUser) {
+      localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+      setUser(newUser);
+    }
   }, []);
 
   const logout = useCallback(() => {

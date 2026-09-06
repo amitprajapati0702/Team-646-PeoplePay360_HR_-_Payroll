@@ -5,7 +5,7 @@ import httpStatus from '../../utils/http-status.js';
 
 export const listPayruns = asyncHandler(async (req: Request, res: Response) => {
   const data = await payrunService.listPayruns(req.query as any);
-  res.json({ success: true, message: 'Payruns fetched successfully', data });
+  res.json({ success: true, message: 'Payruns fetched successfully', data, payruns: data });
 });
 
 export const getPayrunById = asyncHandler(async (req: Request, res: Response) => {

@@ -33,7 +33,8 @@ export function AppShell({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('pp360_token') : null;
-    if (!storedToken && !token) {
+    const isValidToken = storedToken && storedToken !== 'undefined' && storedToken !== 'null';
+    if (!isValidToken && !token) {
       router.replace('/login');
     }
   }, [token, router]);

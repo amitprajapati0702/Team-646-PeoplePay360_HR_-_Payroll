@@ -5,13 +5,19 @@ const emptyToNull = (val: unknown) =>
 
 export const createAttendanceSchema = z.object({
   employeeId: z.string().uuid('Invalid employee ID'),
-  attendanceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD format required'),
-  checkIn: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
+  attendanceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD format required').optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  checkIn: z.string().optional(),
+  checkInTime: z.preprocess(emptyToNull, z.string().optional().nullable()),
   checkOut: z.preprocess(emptyToNull, z.string().optional().nullable()),
+  checkOutTime: z.preprocess(emptyToNull, z.string().optional().nullable()),
+  workedHours: z.coerce.number().optional(),
+  overtimeHours: z.coerce.number().optional(),
   status: z
-    .enum(['PRESENT', 'LATE', 'HALF_DAY', 'ABSENT', 'OVERTIME', 'EXCEPTION'])
+    .enum(['PRESENT', 'LATE', 'HALF_DAY', 'ABSENT', 'OVERTIME', 'EXCEPTION', 'ON_LEAVE'])
     .default('PRESENT'),
   editReason: z.preprocess(emptyToNull, z.string().max(500).optional().nullable()),
+  notes: z.preprocess(emptyToNull, z.string().max(500).optional().nullable()),
 });
 
 export const updateAttendanceSchema = createAttendanceSchema.partial().omit({ employeeId: true });

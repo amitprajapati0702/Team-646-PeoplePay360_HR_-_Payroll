@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import validateRequest from '../../middleware/validate.middleware.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
+import { authRateLimiter } from '../../middleware/rate-limit.middleware.js';
 import {
   registerBodySchema,
   loginBodySchema,
@@ -21,9 +22,9 @@ import {
 
 const router: Router = Router();
 
-// Public Authentication Endpoints
-router.post('/register', validateRequest({ body: registerBodySchema }), register);
-router.post('/login', validateRequest({ body: loginBodySchema }), login);
+// Public Authentication Endpoints (rate-limited)
+router.post('/register', authRateLimiter, validateRequest({ body: registerBodySchema }), register);
+router.post('/login', authRateLimiter, validateRequest({ body: loginBodySchema }), login);
 router.post('/refresh', validateRequest({ body: refreshTokenBodySchema }), refreshToken);
 
 // Authenticated Endpoints

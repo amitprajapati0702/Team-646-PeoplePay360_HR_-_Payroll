@@ -6,7 +6,7 @@ import httpStatus from '../../utils/http-status.js';
 // ─── Departments ────────────────────────────────────────────────
 export const listDepartments = asyncHandler(async (req: Request, res: Response) => {
   const data = await organizationService.listDepartments(req.query as any);
-  res.json({ success: true, data });
+  res.json({ success: true, data, departments: data });
 });
 
 export const getDepartmentById = asyncHandler(async (req: Request, res: Response) => {
@@ -32,7 +32,7 @@ export const deleteDepartment = asyncHandler(async (req: Request, res: Response)
 // ─── Job Positions ──────────────────────────────────────────────
 export const listJobPositions = asyncHandler(async (req: Request, res: Response) => {
   const data = await organizationService.listJobPositions(req.query as any);
-  res.json({ success: true, data });
+  res.json({ success: true, data, jobPositions: data });
 });
 
 export const getJobPositionById = asyncHandler(async (req: Request, res: Response) => {
@@ -58,7 +58,7 @@ export const deleteJobPosition = asyncHandler(async (req: Request, res: Response
 // ─── Working Schedules ──────────────────────────────────────────
 export const listWorkingSchedules = asyncHandler(async (req: Request, res: Response) => {
   const data = await organizationService.listWorkingSchedules(req.query as any);
-  res.json({ success: true, data });
+  res.json({ success: true, data, workingSchedules: data });
 });
 
 export const getWorkingScheduleById = asyncHandler(async (req: Request, res: Response) => {

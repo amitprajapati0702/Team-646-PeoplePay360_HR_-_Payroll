@@ -112,8 +112,12 @@ export default function PositionsPage() {
     },
   });
 
-  const departments = deptData?.departments || [];
-  const positions = jobsData?.jobPositions || [];
+  const departments: Department[] = Array.isArray(deptData)
+    ? (deptData as Department[])
+    : (deptData?.departments || (deptData as any)?.data || []);
+  const positions: JobPosition[] = Array.isArray(jobsData)
+    ? (jobsData as JobPosition[])
+    : (jobsData?.jobPositions || (jobsData as any)?.data || []);
 
   const filteredPositions = positions.filter((p) => {
     const matchesSearch =

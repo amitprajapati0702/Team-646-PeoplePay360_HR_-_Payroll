@@ -22,7 +22,9 @@ import {
   CalendarCheck,
   Receipt,
   UserCheck,
+  ArrowUpRight,
 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function EmployeeDetailPage() {
   const params = useParams();
@@ -111,10 +113,16 @@ export default function EmployeeDetailPage() {
 
             {/* Smart Badges */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-6 bg-zinc-950 border-b border-zinc-800">
-              <div className="p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md">
+              <Link
+                href={`/contracts?employeeId=${id}`}
+                className="group p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md hover:border-zinc-700 hover:bg-zinc-900/60 transition-all cursor-pointer block"
+              >
                 <div className="flex items-center justify-between text-zinc-400 mb-1">
-                  <span className="text-[11px] font-semibold">Active Contract</span>
-                  <FileText className="h-3.5 w-3.5 text-zinc-300" />
+                  <span className="text-[11px] font-semibold flex items-center gap-1 group-hover:text-emerald-400 transition-colors">
+                    Active Contract
+                    <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <FileText className="h-3.5 w-3.5 text-zinc-300 group-hover:text-emerald-400 transition-colors" />
                 </div>
                 <p className="text-sm font-bold text-white font-mono">
                   {employee.smartBadges?.activeContract
@@ -124,12 +132,18 @@ export default function EmployeeDetailPage() {
                 <p className="text-[10px] text-zinc-500 mt-0.5">
                   {employee.smartBadges?.contractsCount || 0} total records
                 </p>
-              </div>
+              </Link>
 
-              <div className="p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md">
+              <Link
+                href={`/attendance?employeeId=${id}`}
+                className="group p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md hover:border-zinc-700 hover:bg-zinc-900/60 transition-all cursor-pointer block"
+              >
                 <div className="flex items-center justify-between text-zinc-400 mb-1">
-                  <span className="text-[11px] font-semibold">Attendance (Mo)</span>
-                  <UserCheck className="h-3.5 w-3.5 text-zinc-300" />
+                  <span className="text-[11px] font-semibold flex items-center gap-1 group-hover:text-blue-400 transition-colors">
+                    Attendance (Mo)
+                    <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <UserCheck className="h-3.5 w-3.5 text-zinc-300 group-hover:text-blue-400 transition-colors" />
                 </div>
                 <p className="text-sm font-bold text-white font-mono">
                   {employee.smartBadges?.attendancesCountThisMonth || 0} Days
@@ -137,12 +151,18 @@ export default function EmployeeDetailPage() {
                 <p className="text-[10px] text-zinc-400 mt-0.5">
                   Present this month
                 </p>
-              </div>
+              </Link>
 
-              <div className="p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md">
+              <Link
+                href={`/time-off?employeeId=${id}`}
+                className="group p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md hover:border-zinc-700 hover:bg-zinc-900/60 transition-all cursor-pointer block"
+              >
                 <div className="flex items-center justify-between text-zinc-400 mb-1">
-                  <span className="text-[11px] font-semibold">Time Off Balance</span>
-                  <CalendarCheck className="h-3.5 w-3.5 text-zinc-300" />
+                  <span className="text-[11px] font-semibold flex items-center gap-1 group-hover:text-amber-400 transition-colors">
+                    Time Off Balance
+                    <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <CalendarCheck className="h-3.5 w-3.5 text-zinc-300 group-hover:text-amber-400 transition-colors" />
                 </div>
                 <p className="text-sm font-bold text-white font-mono">
                   {employee.smartBadges?.timeOffRemainingDays ?? 0} Days
@@ -150,12 +170,18 @@ export default function EmployeeDetailPage() {
                 <p className="text-[10px] text-zinc-500 mt-0.5">
                   of {employee.smartBadges?.timeOffAllocatedDays ?? 0} allocated
                 </p>
-              </div>
+              </Link>
 
-              <div className="p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md">
+              <Link
+                href={`/payroll?employeeId=${id}`}
+                className="group p-3.5 rounded-xl bg-[#121215] border border-zinc-800 shadow-md hover:border-zinc-700 hover:bg-zinc-900/60 transition-all cursor-pointer block"
+              >
                 <div className="flex items-center justify-between text-zinc-400 mb-1">
-                  <span className="text-[11px] font-semibold">Payslips</span>
-                  <Receipt className="h-3.5 w-3.5 text-zinc-300" />
+                  <span className="text-[11px] font-semibold flex items-center gap-1 group-hover:text-purple-400 transition-colors">
+                    Payslips
+                    <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Receipt className="h-3.5 w-3.5 text-zinc-300 group-hover:text-purple-400 transition-colors" />
                 </div>
                 <p className="text-sm font-bold text-white font-mono">
                   {employee.smartBadges?.payslipsGeneratedCount || 0} Generated
@@ -163,7 +189,7 @@ export default function EmployeeDetailPage() {
                 <p className="text-[10px] text-zinc-500 mt-0.5">
                   Lifetime processed
                 </p>
-              </div>
+              </Link>
             </div>
 
             {/* Tabbed Content */}

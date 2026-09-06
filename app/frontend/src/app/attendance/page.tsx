@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -29,18 +30,28 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   HOLIDAY: { bg: 'bg-zinc-900 text-zinc-400 border-zinc-800', text: 'Holiday', icon: CheckCircle2 },
 };
 
-export default function AttendancePage() {
+function AttendanceContent() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const employeeIdParam = searchParams.get('employeeId') || '';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(employeeIdParam);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
 
+  useEffect(() => {
+    if (employeeIdParam) {
+      setSelectedEmployeeFilter(employeeIdParam);
+    }
+  }, [employeeIdParam]);
+
   // Form State for Log Attendance
   const [formData, setFormData] = useState({
-    employeeId: '',
+    employeeId: employeeIdParam || '',
     date: new Date().toISOString().split('T')[0],
     checkInTime: '09:00',
     checkOutTime: '18:00',
@@ -61,11 +72,12 @@ export default function AttendancePage() {
 
   // Fetch Attendance Records
   const { data: attendanceData, isLoading } = useQuery({
-    queryKey: ['attendance', statusFilter, dateFilter],
+    queryKey: ['attendance', statusFilter, dateFilter, selectedEmployeeFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '100' });
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
       if (dateFilter) params.append('date', dateFilter);
+      if (selectedEmployeeFilter) params.append('employeeId', selectedEmployeeFilter);
       const res = await apiClient.get<any>(`/attendance?${params.toString()}`);
       return res.data;
     },
@@ -110,12 +122,27 @@ export default function AttendancePage() {
     onError: (err: any) => toast.error(err?.message || 'Failed to update attendance'),
   });
 
-  const records = attendanceData?.attendances || [];
-  const employees = employeesData?.employees || [];
+  const formatTimeStr = (isoOrTime?: string | null) => {
+    if (!isoOrTime) return '--:--';
+    if (isoOrTime.includes('T')) {
+      const d = new Date(isoOrTime);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      }
+    }
+    return isoOrTime;
+  };
+
+  const records = Array.isArray(attendanceData) ? attendanceData : (attendanceData?.attendances || attendanceData?.data || []);
+  const employees = Array.isArray(employeesData) ? employeesData : (employeesData?.employees || employeesData?.data || []);
 
   const filteredRecords = records.filter((r: any) => {
-    const name = `${r.employee?.firstName} ${r.employee?.lastName}`.toLowerCase();
-    return name.includes(searchTerm.toLowerCase()) || r.date?.includes(searchTerm);
+    if (selectedEmployeeFilter && r.employeeId !== selectedEmployeeFilter) {
+      return false;
+    }
+    const name = `${r.employee?.firstName || ''} ${r.employee?.lastName || ''}`.toLowerCase();
+    const dateStr = r.attendanceDate || r.date || '';
+    return name.includes(searchTerm.toLowerCase()) || dateStr.includes(searchTerm);
   });
 
   const presentCount = records.filter((r: any) => r.status === 'PRESENT').length;
@@ -132,7 +159,7 @@ export default function AttendancePage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-white">
-            Attendance & Work Schedules
+            Attendance Records
           </h1>
           <p className="text-xs text-zinc-400 mt-1">
             Real-time punch records, worked hours calculation, overtime tracking, and manager attendance corrections.
@@ -142,7 +169,7 @@ export default function AttendancePage() {
         <button
           onClick={() => {
             setFormData({
-              employeeId: employees[0]?.id || '',
+              employeeId: selectedEmployeeFilter || employees[0]?.id || '',
               date: new Date().toISOString().split('T')[0],
               checkInTime: '09:00',
               checkOutTime: '18:00',
@@ -168,16 +195,16 @@ export default function AttendancePage() {
             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-white font-mono">{presentCount} Entries</div>
-          <p className="text-xs text-zinc-400 mt-0.5">Clocked in standard hours</p>
+          <p className="text-xs text-zinc-400 mt-0.5">Verified active employees</p>
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5 shadow-md">
           <div className="flex items-center justify-between text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Approved Time Off</span>
-            <Calendar className="h-4 w-4 text-white" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Approved Leave</span>
+            <Calendar className="h-4 w-4 text-amber-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-white font-mono">{leaveCount} Entries</div>
-          <p className="text-xs text-zinc-400 mt-0.5">Excused & paid leaves</p>
+          <p className="text-xs text-zinc-400 mt-0.5">Excused absences</p>
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5 shadow-md">
@@ -192,15 +219,39 @@ export default function AttendancePage() {
 
       {/* Search & Date Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 shadow-md">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search employee or date..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
-          />
+        <div className="flex flex-1 items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search employee or date..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
+            />
+          </div>
+
+          {selectedEmployeeFilter && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-950/70 border border-blue-800 text-xs text-blue-300">
+              <span>
+                Employee:{' '}
+                <strong className="text-white">
+                  {(() => {
+                    const emp = employees.find((e: any) => e.id === selectedEmployeeFilter);
+                    return emp ? `${emp.firstName} ${emp.lastName}` : 'Selected';
+                  })()}
+                </strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeFilter('')}
+                className="p-0.5 hover:bg-blue-800/50 rounded text-zinc-400 hover:text-white transition-colors"
+                title="Clear employee filter"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -293,15 +344,15 @@ export default function AttendancePage() {
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap text-xs font-medium text-zinc-300 font-mono">
-                        {r.date}
+                        {r.attendanceDate || r.date}
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap text-xs text-zinc-400 font-mono">
-                        {r.checkInTime || '--:--'} → {r.checkOutTime || '--:--'}
+                        {formatTimeStr(r.checkIn || r.checkInTime)} → {formatTimeStr(r.checkOut || r.checkOutTime)}
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap text-xs font-semibold text-white">
-                        {r.workedHours || 8} hrs {r.overtimeHours ? `(+${r.overtimeHours}h OT)` : ''}
+                        {r.workedHours || 8} hrs {r.overtimeHours && Number(r.overtimeHours) > 0 ? `(+${r.overtimeHours}h OT)` : ''}
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap">
@@ -321,11 +372,11 @@ export default function AttendancePage() {
                           onClick={() => {
                             setSelectedRecord(r);
                             setCorrectionData({
-                              checkInTime: r.checkInTime || '09:00',
-                              checkOutTime: r.checkOutTime || '18:00',
-                              workedHours: r.workedHours || 8,
+                              checkInTime: formatTimeStr(r.checkIn || r.checkInTime) || '09:00',
+                              checkOutTime: formatTimeStr(r.checkOut || r.checkOutTime) || '18:00',
+                              workedHours: Number(r.workedHours || 8),
                               status: r.status || 'PRESENT',
-                              notes: r.notes || '',
+                              notes: r.editReason || r.notes || '',
                             });
                             setIsCorrectionModalOpen(true);
                           }}
@@ -358,7 +409,15 @@ export default function AttendancePage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                createMutation.mutate(formData);
+                createMutation.mutate({
+                  employeeId: formData.employeeId,
+                  attendanceDate: formData.date,
+                  checkIn: `${formData.date}T${formData.checkInTime || '09:00'}:00.000Z`,
+                  checkOut: formData.checkOutTime ? `${formData.date}T${formData.checkOutTime}:00.000Z` : null,
+                  workedHours: Number(formData.workedHours),
+                  status: formData.status,
+                  editReason: formData.notes || null,
+                });
               }}
               className="mt-4 space-y-4"
             >
@@ -480,7 +539,18 @@ export default function AttendancePage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                updateMutation.mutate({ id: selectedRecord.id, data: correctionData });
+                const attDate = selectedRecord.attendanceDate || selectedRecord.date || new Date().toISOString().split('T')[0];
+                updateMutation.mutate({
+                  id: selectedRecord.id,
+                  data: {
+                    attendanceDate: attDate,
+                    checkIn: `${attDate}T${correctionData.checkInTime || '09:00'}:00.000Z`,
+                    checkOut: correctionData.checkOutTime ? `${attDate}T${correctionData.checkOutTime}:00.000Z` : null,
+                    workedHours: Number(correctionData.workedHours),
+                    status: correctionData.status,
+                    editReason: correctionData.notes || 'Manual HR correction',
+                  },
+                });
               }}
               className="mt-4 space-y-4"
             >
@@ -553,5 +623,13 @@ export default function AttendancePage() {
       )}
     </div>
     </AppShell>
+  );
+}
+
+export default function AttendancePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500 text-sm">Loading attendance records...</div>}>
+      <AttendanceContent />
+    </Suspense>
   );
 }

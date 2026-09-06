@@ -59,6 +59,7 @@ export default function PayrollPage() {
     endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0],
     paymentDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 5).toISOString().split('T')[0],
     departmentId: 'ALL',
+    salaryStructureId: '',
     selectedEmployeeIds: [] as string[],
   });
 
@@ -95,10 +96,28 @@ export default function PayrollPage() {
     enabled: isWizardOpen,
   });
 
+  // Fetch Salary Structures for Step 1 Scope
+  const { data: structuresData } = useQuery({
+    queryKey: ['salary-structures-lookup'],
+    queryFn: async () => {
+      const res = await apiClient.get<any>('/salary-structures');
+      return res.data;
+    },
+    enabled: isWizardOpen,
+  });
+
   // Create Payrun Mutation
   const createPayrunMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiClient.post<any>('/payruns', data);
+      const payload = {
+        name: data.name,
+        batchCode: `PAY-${Date.now().toString().slice(-6)}`,
+        periodStart: data.startDate,
+        periodEnd: data.endDate,
+        defaultSalaryStructureId: data.salaryStructureId || undefined,
+        employeeIds: data.selectedEmployeeIds,
+      };
+      const res = await apiClient.post<any>('/payruns', payload);
       return res.data;
     },
     onSuccess: (res: any) => {
@@ -125,9 +144,10 @@ export default function PayrollPage() {
     onError: (err: any) => toast.error(err?.message || 'Action failed'),
   });
 
-  const payruns = payrunsData?.payruns || [];
-  const employees = employeesData?.employees || [];
-  const departments = deptData?.departments || [];
+  const payruns = Array.isArray(payrunsData) ? payrunsData : (payrunsData?.payruns || payrunsData?.data || []);
+  const employees = Array.isArray(employeesData) ? employeesData : (employeesData?.employees || employeesData?.data || []);
+  const departments = Array.isArray(deptData) ? deptData : (deptData?.departments || deptData?.data || []);
+  const salaryStructures = Array.isArray(structuresData) ? structuresData : (structuresData?.structures || structuresData?.data || []);
 
   const filteredPayruns = payruns.filter((p: any) =>
     p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -521,6 +541,25 @@ export default function PayrollPage() {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Default Salary Structure</label>
+                  <select
+                    value={formData.salaryStructureId}
+                    onChange={(e) => setFormData({ ...formData, salaryStructureId: e.target.value })}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-white focus:outline-none"
+                  >
+                    <option value="">Auto-assign from Employee Active Contracts</option>
+                    {salaryStructures.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-zinc-500 mt-1">
+                    Defines the salary computation rules applied to the payrun batch.
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">

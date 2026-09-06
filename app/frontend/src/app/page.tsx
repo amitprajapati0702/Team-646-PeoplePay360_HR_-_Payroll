@@ -11,7 +11,8 @@ export default function Home() {
 
   useEffect(() => {
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('pp360_token') : null;
-    if (storedToken || token) {
+    const isValidToken = storedToken && storedToken !== 'undefined' && storedToken !== 'null';
+    if (isValidToken || (token && token !== 'undefined')) {
       router.replace('/dashboard');
     } else {
       router.replace('/login');

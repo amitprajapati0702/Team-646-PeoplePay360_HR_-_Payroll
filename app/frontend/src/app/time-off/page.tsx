@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -86,12 +87,16 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   CANCELLED: { bg: 'bg-zinc-900 border-zinc-800 text-zinc-400', text: 'Cancelled', icon: X },
 };
 
-export default function TimeOffPage() {
+function TimeOffContent() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const employeeIdParam = searchParams.get('employeeId') || '';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(employeeIdParam);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
@@ -99,9 +104,15 @@ export default function TimeOffPage() {
 
   const isHR = ['HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'ADMIN'].includes(user?.role || '');
 
+  useEffect(() => {
+    if (employeeIdParam) {
+      setSelectedEmployeeFilter(employeeIdParam);
+    }
+  }, [employeeIdParam]);
+
   // Form state
   const [formData, setFormData] = useState({
-    employeeId: user?.employee?.id || '',
+    employeeId: employeeIdParam || user?.employee?.id || '',
     timeOffTypeId: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -129,11 +140,12 @@ export default function TimeOffPage() {
 
   // 2. Fetch Leave Allocations (Balances)
   const { data: allocationsResponse } = useQuery({
-    queryKey: ['time-off-allocations', user?.employee?.id],
+    queryKey: ['time-off-allocations', user?.employee?.id, selectedEmployeeFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (!isHR && user?.employee?.id) {
-        params.append('employeeId', user.employee.id);
+      const targetEmpId = selectedEmployeeFilter || (!isHR ? user?.employee?.id : undefined);
+      if (targetEmpId) {
+        params.append('employeeId', targetEmpId);
       }
       const res = await apiClient.get<any>(`/time-off/allocations?${params.toString()}`);
       return res;
@@ -143,12 +155,13 @@ export default function TimeOffPage() {
 
   // 3. Fetch Leave Requests
   const { data: requestsResponse, isLoading: isRequestsLoading } = useQuery({
-    queryKey: ['time-off-requests', statusFilter, typeFilter],
+    queryKey: ['time-off-requests', statusFilter, typeFilter, selectedEmployeeFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
       if (typeFilter !== 'ALL') params.append('timeOffTypeId', typeFilter);
-      if (!isHR && user?.employee?.id) params.append('employeeId', user.employee.id);
+      const targetEmpId = selectedEmployeeFilter || (!isHR ? user?.employee?.id : undefined);
+      if (targetEmpId) params.append('employeeId', targetEmpId);
 
       const res = await apiClient.get<any>(`/time-off/requests?${params.toString()}`);
       return res;
@@ -241,6 +254,9 @@ export default function TimeOffPage() {
   });
 
   const filteredRequests = requests.filter((req: TimeOffRequest) => {
+    if (selectedEmployeeFilter && req.employeeId !== selectedEmployeeFilter) {
+      return false;
+    }
     const name = `${req.employee?.firstName} ${req.employee?.lastName}`.toLowerCase();
     const code = (req.employee?.employeeCode || '').toLowerCase();
     const search = searchTerm.toLowerCase();
@@ -281,7 +297,7 @@ export default function TimeOffPage() {
         <button
           onClick={() => {
             setFormData({
-              employeeId: user?.employee?.id || (employees[0]?.id ?? ''),
+              employeeId: selectedEmployeeFilter || user?.employee?.id || (employees[0]?.id ?? ''),
               timeOffTypeId: leaveTypes[0]?.id || '',
               startDate: new Date().toISOString().split('T')[0],
               endDate: new Date().toISOString().split('T')[0],
@@ -341,15 +357,39 @@ export default function TimeOffPage() {
 
       {/* Search & Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 shadow-md">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search employee, ID code, or reason..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
-          />
+        <div className="flex flex-1 items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search employee, ID code, or reason..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-400 focus:outline-none"
+            />
+          </div>
+
+          {selectedEmployeeFilter && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/70 border border-amber-800 text-xs text-amber-300">
+              <span>
+                Employee:{' '}
+                <strong className="text-white">
+                  {(() => {
+                    const emp = employees.find((e: any) => e.id === selectedEmployeeFilter);
+                    return emp ? `${emp.firstName} ${emp.lastName}` : 'Selected';
+                  })()}
+                </strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeFilter('')}
+                className="p-0.5 hover:bg-amber-800/50 rounded text-zinc-400 hover:text-white transition-colors"
+                title="Clear employee filter"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -674,5 +714,13 @@ export default function TimeOffPage() {
       )}
     </div>
     </AppShell>
+  );
+}
+
+export default function TimeOffPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500 text-sm">Loading time-off records...</div>}>
+      <TimeOffContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import validateRequest from '../../middleware/validate.middleware.js';
 import { authenticate, requireMinRole } from '../../middleware/auth.middleware.js';
+import { payrunBatchRateLimiter } from '../../middleware/rate-limit.middleware.js';
 import {
   createPayrunSchema, payrunIdParamSchema, payrunQuerySchema, payrunActionSchema,
 } from './payrun.schema.js';
@@ -14,8 +15,8 @@ router.use(requireMinRole('HR_PAYROLL_USER'));
 
 router.get('/', validateRequest({ query: payrunQuerySchema }), listPayruns);
 router.get('/:id', validateRequest({ params: payrunIdParamSchema }), getPayrunById);
-router.post('/', validateRequest({ body: createPayrunSchema }), createPayrun);
-router.post('/:id/process', requireMinRole('HR_PAYROLL_MANAGER'), validateRequest({ params: payrunIdParamSchema }), processPayrun);
+router.post('/', payrunBatchRateLimiter, validateRequest({ body: createPayrunSchema }), createPayrun);
+router.post('/:id/process', payrunBatchRateLimiter, requireMinRole('HR_PAYROLL_MANAGER'), validateRequest({ params: payrunIdParamSchema }), processPayrun);
 router.patch('/:id/action', requireMinRole('HR_PAYROLL_MANAGER'), validateRequest({ params: payrunIdParamSchema, body: payrunActionSchema }), performPayrunAction);
 router.delete('/:id', requireMinRole('HR_PAYROLL_MANAGER'), validateRequest({ params: payrunIdParamSchema }), deletePayrun);
 
