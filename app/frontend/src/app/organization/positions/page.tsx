@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/providers/AuthProvider';
 
 interface Department {
   id: string;
@@ -45,6 +46,8 @@ interface JobsResponse {
 }
 
 export default function PositionsPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
@@ -180,13 +183,15 @@ export default function PositionsPage() {
               ))}
             </select>
 
-            <button
-              onClick={() => setIsNewModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add Position</span>
-            </button>
+            {!isEmployee && (
+              <button
+                onClick={() => setIsNewModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Position</span>
+              </button>
+            )}
           </div>
         </div>
 

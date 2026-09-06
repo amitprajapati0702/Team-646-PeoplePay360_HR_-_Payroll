@@ -11,6 +11,7 @@ import {
   Briefcase,
   X,
 } from 'lucide-react';
+import { useAuth } from '@/providers/AuthProvider';
 
 interface DepartmentItem {
   id: string;
@@ -36,6 +37,8 @@ interface JobPositionsResponse {
 }
 
 export default function DepartmentsPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewDeptModalOpen, setIsNewDeptModalOpen] = useState(false);
@@ -139,22 +142,24 @@ export default function DepartmentsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsNewJobModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-            >
-              <Briefcase className="h-3.5 w-3.5 text-zinc-300" />
-              <span>Add Job Position</span>
-            </button>
-            <button
-              onClick={() => setIsNewDeptModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add Department</span>
-            </button>
-          </div>
+          {!isEmployee && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsNewJobModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+              >
+                <Briefcase className="h-3.5 w-3.5 text-zinc-300" />
+                <span>Add Job Position</span>
+              </button>
+              <button
+                onClick={() => setIsNewDeptModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Department</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Grid: Departments cards */}

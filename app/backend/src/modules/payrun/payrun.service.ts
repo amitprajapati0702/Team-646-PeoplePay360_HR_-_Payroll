@@ -1,4 +1,7 @@
 import { payrunRepository } from './payrun.repository.js';
+import { db } from '../../infrastructure/database/client.js';
+import { payslips, employees, salaryStructures } from '../../infrastructure/database/schema/index.js';
+import { eq } from 'drizzle-orm';
 import ApiError from '../../utils/Apierror.js';
 import httpStatus from '../../utils/http-status.js';
 import { contractsService } from '../contracts/contracts.service.js';
@@ -133,7 +136,29 @@ export class PayrunService {
     periodStart: string,
     periodEnd: string
   ) {
-    const contract = await contractsService.findActiveContractForPeriod(employeeId, periodStart, periodEnd);
+    let contract = await contractsService.findActiveContractForPeriod(employeeId, periodStart, periodEnd);
+    if (!contract) {
+      const defaultStruct = await db.query.salaryStructures.findFirst({
+        where: eq(salaryStructures.isActive, true),
+      });
+      const emp = await db.query.employees.findFirst({
+        where: eq(employees.id, employeeId),
+      });
+      if (defaultStruct && emp) {
+        await contractsService.createContract({
+          employeeId: emp.id,
+          salaryStructureId: defaultStruct.id,
+          departmentId: emp.departmentId,
+          jobPositionId: emp.jobPositionId,
+          workingScheduleId: emp.workingScheduleId,
+          startDate: periodStart,
+          wage: 35000,
+          status: 'ACTIVE',
+        });
+        contract = await contractsService.findActiveContractForPeriod(employeeId, periodStart, periodEnd);
+      }
+    }
+
     if (!contract) {
       throw new Error(`No active contract found for employee ${employeeId} in period ${periodStart} - ${periodEnd}`);
     }
@@ -261,16 +286,75 @@ export class PayrunService {
     return payslip;
   }
 
+  async recomputePayrun(id: string, actingUserId?: string) {
+    const payrun = await payrunRepository.findById(id);
+    if (!payrun) {
+      throw new ApiError({ statuscode: httpStatus.NOT_FOUND, message: 'Payrun not found.', errorcode: 'PAYRUN_NOT_FOUND' });
+    }
+
+    // Get employee IDs from existing payslips or active employees
+    let employeeIds: string[] = payrun.payslips?.map((p: any) => p.employee?.id || p.employeeId).filter(Boolean) ?? [];
+    if (employeeIds.length === 0) {
+      const allActive = await db.query.employees.findMany({
+        where: eq(employees.status, 'ACTIVE'),
+        columns: { id: true },
+      });
+      employeeIds = allActive.map((e) => e.id);
+    }
+
+    // Delete existing payslips for this payrun before recomputing
+    await db.delete(payslips).where(eq(payslips.payrunId, id));
+
+    let totalGross = 0;
+    let totalDeductions = 0;
+    let totalNet = 0;
+    let payslipCount = 0;
+
+    for (const employeeId of employeeIds) {
+      try {
+        await this.computePayslipForEmployee(payrun.id, employeeId, payrun.periodStart, payrun.periodEnd);
+        payslipCount++;
+      } catch (err) {
+        console.error(`Failed to recompute payslip for employee ${employeeId}:`, err);
+      }
+    }
+
+    const createdPayslips = await payrunRepository.findPayslipsForPayrun(payrun.id);
+
+    for (const ps of createdPayslips) {
+      totalGross += parseFloat(ps.grossAmount ?? '0');
+      totalDeductions += parseFloat(ps.deductionAmount ?? '0');
+      totalNet += parseFloat(ps.netAmount ?? '0');
+    }
+
+    await payrunRepository.update(payrun.id, {
+      status: 'COMPUTED',
+      totalGrossAmount: String(Math.round(totalGross * 100) / 100),
+      totalDeductionAmount: String(Math.round(totalDeductions * 100) / 100),
+      totalNetAmount: String(Math.round(totalNet * 100) / 100),
+      totalPayslipCount: payslipCount,
+      updatedAt: new Date(),
+    });
+
+    return this.getPayrunById(payrun.id);
+  }
+
   async performAction(id: string, data: PayrunActionInput, actingUserId?: string) {
     const payrun = await payrunRepository.findById(id);
     if (!payrun) {
       throw new ApiError({ statuscode: httpStatus.NOT_FOUND, message: 'Payrun not found.', errorcode: 'PAYRUN_NOT_FOUND' });
     }
 
+    const action = data.action.toUpperCase();
+
+    if (action === 'COMPUTE' || action === 'RECOMPUTE') {
+      return await this.recomputePayrun(id, actingUserId);
+    }
+
     let newStatus: string;
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
-    if (data.action === 'VALIDATE') {
+    if (action === 'VALIDATE') {
       if (!['COMPUTED', 'DRAFT'].includes(payrun.status)) {
         throw new ApiError({ statuscode: httpStatus.BAD_REQUEST, message: 'Only computed payruns can be validated.', errorcode: 'INVALID_STATUS' });
       }
@@ -278,16 +362,18 @@ export class PayrunService {
       updateData.validatedByUserId = actingUserId ?? null;
       updateData.validatedAt = new Date();
       await payrunRepository.updatePayslipsStatusByPayrun(id, 'VALIDATED');
-    } else if (data.action === 'MARK_PAID') {
-      if (payrun.status !== 'VALIDATED') {
-        throw new ApiError({ statuscode: httpStatus.BAD_REQUEST, message: 'Only validated payruns can be marked as paid.', errorcode: 'INVALID_STATUS' });
+    } else if (action === 'MARK_PAID' || action === 'CONFIRM' || action === 'SETTLE') {
+      if (!['VALIDATED', 'COMPUTED'].includes(payrun.status)) {
+        throw new ApiError({ statuscode: httpStatus.BAD_REQUEST, message: 'Only validated or computed payruns can be confirmed and settled.', errorcode: 'INVALID_STATUS' });
       }
       newStatus = 'PAID';
       updateData.paidAt = new Date();
       await payrunRepository.updatePayslipsStatusByPayrun(id, 'PAID');
-    } else {
+    } else if (action === 'CANCEL') {
       newStatus = 'CANCELLED';
       await payrunRepository.updatePayslipsStatusByPayrun(id, 'CANCELLED');
+    } else {
+      throw new ApiError({ statuscode: httpStatus.BAD_REQUEST, message: `Unsupported payrun action: ${data.action}`, errorcode: 'INVALID_ACTION' });
     }
 
     updateData.status = newStatus;

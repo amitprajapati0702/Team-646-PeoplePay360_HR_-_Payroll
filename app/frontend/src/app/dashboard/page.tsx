@@ -22,7 +22,6 @@ import {
   LogIn,
   LogOut,
   UserPlus,
-  Lock,
   Plus,
 } from 'lucide-react';
 
@@ -179,16 +178,13 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <button
-                type="button"
-                disabled
-                title="Access Restricted: Employees cannot add or create new users or employees. Only HR Managers and Administrators have permission."
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs font-semibold text-zinc-500 shadow-none cursor-not-allowed opacity-50 select-none"
+              <Link
+                href="/payslips"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 transition-all cursor-pointer"
               >
-                <Lock className="h-3.5 w-3.5 text-zinc-500" />
-                <span>Add User / Employee</span>
-                <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-mono text-zinc-500">HR Only</span>
-              </button>
+                <Receipt className="h-3.5 w-3.5 text-indigo-400" />
+                <span>My Payslips</span>
+              </Link>
             )}
           </div>
         </div>

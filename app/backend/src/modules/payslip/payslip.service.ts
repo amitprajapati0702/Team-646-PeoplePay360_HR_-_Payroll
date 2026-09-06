@@ -51,8 +51,23 @@ export class PayslipService {
     return await db.query.payslips.findMany({
       where: eq(payslips.employeeId, employeeId),
       with: {
-        payrun: { columns: { id: true, name: true, batchCode: true, periodStart: true, periodEnd: true } },
+        payrun: { columns: { id: true, name: true, batchCode: true, periodStart: true, periodEnd: true, status: true } },
         salaryStructure: { columns: { id: true, name: true } },
+        employee: {
+          columns: {
+            id: true, firstName: true, lastName: true, employeeCode: true,
+            workEmail: true, personalEmail: true, avatarUrl: true,
+            bankName: true, bankAccountNumber: true, bankRoutingOrIfsc: true, bankAccountHolderName: true,
+          },
+          with: {
+            department: { columns: { id: true, name: true, code: true } },
+            jobPosition: { columns: { id: true, title: true } },
+          },
+        },
+        lines: {
+          with: { category: true },
+          orderBy: (l, { asc }) => [asc(l.sequence)],
+        },
       },
       orderBy: (p, { desc }) => [desc(p.periodStart)],
     });

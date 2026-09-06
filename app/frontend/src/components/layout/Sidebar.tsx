@@ -65,6 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Payroll Engine',
     items: [
+      { label: 'My Payslips', href: '/payslips', icon: Receipt },
       { label: 'Payrun Processing', href: '/payroll', icon: Receipt, minRole: 'HR_PAYROLL_USER' },
       { label: 'Salary Structures', href: '/salary-structures', icon: DollarSign, minRole: 'HR_PAYROLL_USER' },
     ],

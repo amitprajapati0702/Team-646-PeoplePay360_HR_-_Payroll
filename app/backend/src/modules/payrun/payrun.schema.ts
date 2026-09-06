@@ -25,7 +25,15 @@ export const payrunQuerySchema = z.object({
 });
 
 export const payrunActionSchema = z.object({
-  action: z.enum(['VALIDATE', 'MARK_PAID', 'CANCEL']),
+  action: z.enum([
+    'VALIDATE',
+    'MARK_PAID',
+    'CONFIRM',
+    'SETTLE',
+    'COMPUTE',
+    'RECOMPUTE',
+    'CANCEL',
+  ]),
   notes: z.string().max(500).optional().nullable(),
 });
 

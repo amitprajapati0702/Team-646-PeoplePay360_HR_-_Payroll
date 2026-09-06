@@ -31,8 +31,11 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function PayrunDetailPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -145,66 +148,68 @@ export default function PayrunDetailPage() {
           </div>
         </div>
 
-        {/* State Pipeline Actions - All buttons with white text */}
-        <div className="flex flex-wrap items-center gap-2">
-          {status === 'DRAFT' && (
-            <button
-              onClick={() => actionMutation.mutate('COMPUTE')}
-              disabled={actionMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-900/80 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-800 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {actionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-              <span>Compute All Salaries</span>
-            </button>
-          )}
-
-          {status === 'COMPUTED' && (
-            <>
+        {/* State Pipeline Actions - Hidden for Employees */}
+        {!isEmployee && (
+          <div className="flex flex-wrap items-center gap-2">
+            {status === 'DRAFT' && (
               <button
                 onClick={() => actionMutation.mutate('COMPUTE')}
                 disabled={actionMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-900/80 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
-                <Play className="h-3.5 w-3.5" />
-                <span>Recompute</span>
+                {actionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                <span>Compute All Salaries</span>
               </button>
+            )}
+
+            {status === 'COMPUTED' && (
+              <>
+                <button
+                  onClick={() => actionMutation.mutate('COMPUTE')}
+                  disabled={actionMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  <span>Recompute</span>
+                </button>
+                <button
+                  onClick={() => actionMutation.mutate('VALIDATE')}
+                  disabled={actionMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-700 bg-amber-900/80 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-50 cursor-pointer"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Validate Payrun</span>
+                </button>
+              </>
+            )}
+
+            {status === 'VALIDATED' && (
               <button
-                onClick={() => actionMutation.mutate('VALIDATE')}
+                onClick={() => actionMutation.mutate('CONFIRM')}
                 disabled={actionMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-700 bg-amber-900/80 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-900/80 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
               >
-                <Check className="h-3.5 w-3.5" />
-                <span>Validate Payrun</span>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Confirm & Settle Payrun</span>
               </button>
-            </>
-          )}
+            )}
 
-          {status === 'VALIDATED' && (
-            <button
-              onClick={() => actionMutation.mutate('CONFIRM')}
-              disabled={actionMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-900/80 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Confirm & Settle Payrun</span>
-            </button>
-          )}
-
-          {(status === 'PAID' || status === 'CONFIRMED' || status === 'DONE') && (
-            <button
-              onClick={() => bulkEmailMutation.mutate()}
-              disabled={bulkEmailMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 disabled:opacity-50 cursor-pointer"
-            >
-              {bulkEmailMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5 text-zinc-300" />
-              )}
-              <span>Bulk Email Payslips</span>
-            </button>
-          )}
-        </div>
+            {(status === 'PAID' || status === 'CONFIRMED' || status === 'DONE') && (
+              <button
+                onClick={() => bulkEmailMutation.mutate()}
+                disabled={bulkEmailMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 disabled:opacity-50 cursor-pointer"
+              >
+                {bulkEmailMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5 text-zinc-300" />
+                )}
+                <span>Bulk Email Payslips</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Lifecycle Workflow Bar */}
@@ -457,13 +462,15 @@ export default function PayrunDetailPage() {
                   <Printer className="h-3.5 w-3.5" />
                   <span>Print / Save PDF</span>
                 </button>
-                <button
-                  onClick={() => singleEmailMutation.mutate(selectedPayslip.id)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 cursor-pointer"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Email to Employee</span>
-                </button>
+                {!isEmployee && (
+                  <button
+                    onClick={() => singleEmailMutation.mutate(selectedPayslip.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>Email to Employee</span>
+                  </button>
+                )}
               </div>
 
               <button

@@ -13,6 +13,7 @@ import { EmployeeHierarchyModal } from '@/components/employees/EmployeeHierarchy
 import { DeleteEmployeeDialog } from '@/components/employees/DeleteEmployeeDialog';
 import { Button } from '@/components/ui/button';
 import { useEmployees, useEmployeeKanban } from '@/hooks/use-employees';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   Users,
   LayoutGrid,
@@ -28,6 +29,8 @@ import type {
 } from '@/types/employee';
 
 export default function EmployeesPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [kanbanGroupBy, setKanbanGroupBy] = useState<
     'status' | 'department' | 'employmentType'
@@ -71,7 +74,7 @@ export default function EmployeesPage() {
     <AppShell
       title="Employee Directory"
       subtitle="Comprehensive employee master records, position tracking, and org hierarchy"
-      onNewEmployeeClick={() => setCreateModalOpen(true)}
+      onNewEmployeeClick={!isEmployee ? () => setCreateModalOpen(true) : undefined}
       searchQuery={filters.search}
       onSearchChange={(val) => handleFilterChange({ search: val, page: 1 })}
     >
@@ -154,23 +157,25 @@ export default function EmployeesPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/employees/new"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all"
-            >
-              <UserPlus className="h-4 w-4 mr-1 text-white" />
-              <span>Add Employee (Page)</span>
-            </Link>
-            <Button
-              onClick={() => setCreateModalOpen(true)}
-              size="sm"
-              className="border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:border-zinc-500 shadow-md cursor-pointer"
-            >
-              <UserPlus className="h-4 w-4 mr-1.5 text-white" />
-              <span>Quick Add (Modal)</span>
-            </Button>
-          </div>
+          {!isEmployee && (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/employees/new"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all"
+              >
+                <UserPlus className="h-4 w-4 mr-1 text-white" />
+                <span>Add Employee (Page)</span>
+              </Link>
+              <Button
+                onClick={() => setCreateModalOpen(true)}
+                size="sm"
+                className="border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:border-zinc-500 shadow-md cursor-pointer"
+              >
+                <UserPlus className="h-4 w-4 mr-1.5 text-white" />
+                <span>Quick Add (Modal)</span>
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* View Mode Switching */}

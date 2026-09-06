@@ -4,7 +4,7 @@ import { authenticate, requireMinRole } from '../../middleware/auth.middleware.j
 import { payrunBatchRateLimiter } from '../../middleware/rate-limit.middleware.js';
 import { z } from 'zod';
 import {
-  getPayslipById, listPayslipsForPayrun, listPayslipsForEmployee, sendPayslipEmail, bulkSendEmails,
+  getPayslipById, getMyPayslips, listPayslipsForPayrun, listPayslipsForEmployee, sendPayslipEmail, bulkSendEmails,
 } from './payslip.controller.js';
 
 const idParam = z.object({ id: z.string().uuid() });
@@ -13,6 +13,9 @@ const employeeIdParam = z.object({ employeeId: z.string().uuid() });
 
 const router: Router = Router();
 router.use(authenticate);
+
+// Self-service endpoint for logged-in employee (must be defined before /:id)
+router.get('/my', getMyPayslips);
 
 router.get('/:id', validateRequest({ params: idParam }), getPayslipById);
 router.get('/payrun/:payrunId', validateRequest({ params: payrunIdParam }), listPayslipsForPayrun);

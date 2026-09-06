@@ -33,6 +33,7 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/providers/AuthProvider';
 
 const STATE_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   DRAFT: { bg: 'bg-zinc-900 text-zinc-300 border-zinc-700', text: 'Draft Setup', icon: Clock },
@@ -45,6 +46,8 @@ const STATE_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
 };
 
 export default function PayrollPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const router = useRouter();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
@@ -196,16 +199,18 @@ export default function PayrollPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setWizardStep(1);
-            setIsWizardOpen(true);
-          }}
-          className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-        >
-          <Plus className="h-4 w-4 text-white" />
-          <span>Initialize Payrun Batch</span>
-        </button>
+        {!isEmployee && (
+          <button
+            onClick={() => {
+              setWizardStep(1);
+              setIsWizardOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+          >
+            <Plus className="h-4 w-4 text-white" />
+            <span>Initialize Payrun Batch</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Stats Summary Cards */}

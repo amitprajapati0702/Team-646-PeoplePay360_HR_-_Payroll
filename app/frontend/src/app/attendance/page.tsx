@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/providers/AuthProvider';
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
   PRESENT: { bg: 'bg-emerald-950 text-emerald-300 border-emerald-800', text: 'Present', icon: CheckCircle2 },
@@ -31,6 +32,8 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; icon: any }> = {
 };
 
 function AttendanceContent() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const employeeIdParam = searchParams.get('employeeId') || '';
@@ -166,25 +169,27 @@ function AttendanceContent() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setFormData({
-              employeeId: selectedEmployeeFilter || employees[0]?.id || '',
-              date: new Date().toISOString().split('T')[0],
-              checkInTime: '09:00',
-              checkOutTime: '18:00',
-              workedHours: 8,
-              overtimeHours: 0,
-              status: 'PRESENT',
-              notes: '',
-            });
-            setIsModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-        >
-          <Plus className="h-4 w-4 text-white" />
-          <span>Log Attendance Entry</span>
-        </button>
+        {!isEmployee && (
+          <button
+            onClick={() => {
+              setFormData({
+                employeeId: selectedEmployeeFilter || employees[0]?.id || '',
+                date: new Date().toISOString().split('T')[0],
+                checkInTime: '09:00',
+                checkOutTime: '18:00',
+                workedHours: 8,
+                overtimeHours: 0,
+                status: 'PRESENT',
+                notes: '',
+              });
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+          >
+            <Plus className="h-4 w-4 text-white" />
+            <span>Log Attendance Entry</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Stats Summary Cards */}
@@ -368,23 +373,27 @@ function AttendanceContent() {
                       </td>
 
                       <td className="px-5 py-3.5 whitespace-nowrap text-right text-xs">
-                        <button
-                          onClick={() => {
-                            setSelectedRecord(r);
-                            setCorrectionData({
-                              checkInTime: formatTimeStr(r.checkIn || r.checkInTime) || '09:00',
-                              checkOutTime: formatTimeStr(r.checkOut || r.checkOutTime) || '18:00',
-                              workedHours: Number(r.workedHours || 8),
-                              status: r.status || 'PRESENT',
-                              notes: r.editReason || r.notes || '',
-                            });
-                            setIsCorrectionModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors"
-                        >
-                          <Edit2 className="h-3 w-3 text-zinc-300" />
-                          <span>Correct</span>
-                        </button>
+                        {!isEmployee ? (
+                          <button
+                            onClick={() => {
+                              setSelectedRecord(r);
+                              setCorrectionData({
+                                checkInTime: formatTimeStr(r.checkIn || r.checkInTime) || '09:00',
+                                checkOutTime: formatTimeStr(r.checkOut || r.checkOutTime) || '18:00',
+                                workedHours: Number(r.workedHours || 8),
+                                status: r.status || 'PRESENT',
+                                notes: r.editReason || r.notes || '',
+                              });
+                              setIsCorrectionModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors"
+                          >
+                            <Edit2 className="h-3 w-3 text-zinc-300" />
+                            <span>Correct</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] font-mono text-zinc-500">Verified</span>
+                        )}
                       </td>
                     </tr>
                   );

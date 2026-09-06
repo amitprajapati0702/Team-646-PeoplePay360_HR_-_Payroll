@@ -231,9 +231,25 @@ export class AuthService {
       .set({ lastLoginAt: new Date(), updatedAt: new Date() })
       .where(eq(users.id, user.id));
 
-    // 4. Create session & generate tokens
+    // 4. Resolve Employee Profile (auto-link by email if relation was unlinked)
+    let employeeProfile = user.employee;
+    if (!employeeProfile) {
+      const matchedEmp = await db.query.employees.findFirst({
+        where: eq(employees.workEmail, user.email.toLowerCase()),
+        columns: { id: true, firstName: true, lastName: true, avatarUrl: true, employeeCode: true },
+      });
+      if (matchedEmp) {
+        employeeProfile = matchedEmp;
+        await db
+          .update(employees)
+          .set({ userId: user.id, updatedAt: new Date() })
+          .where(eq(employees.id, matchedEmp.id));
+      }
+    }
+
+    // 5. Create session & generate tokens
     const sessionId = crypto.randomUUID();
-    const { accessToken, refreshToken } = this.generateTokens(user, sessionId, user.employee?.id);
+    const { accessToken, refreshToken } = this.generateTokens(user, sessionId, employeeProfile?.id);
     const refreshTokenHash = this.hashRefreshToken(refreshToken);
     const refreshExpiryMs = this.parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + refreshExpiryMs);
@@ -257,13 +273,13 @@ export class AuthService {
         email: user.email,
         role: user.role,
         permissions: getRolePermissions(user.role),
-        employee: user.employee
+        employee: employeeProfile
           ? {
-              id: user.employee.id,
-              firstName: user.employee.firstName,
-              lastName: user.employee.lastName,
-              employeeCode: user.employee.employeeCode,
-              avatarUrl: user.employee.avatarUrl,
+              id: employeeProfile.id,
+              firstName: employeeProfile.firstName,
+              lastName: employeeProfile.lastName,
+              employeeCode: employeeProfile.employeeCode,
+              avatarUrl: employeeProfile.avatarUrl,
             }
           : null,
       },
@@ -535,6 +551,25 @@ export class AuthService {
       });
     }
 
+    let employeeData = user.employee;
+    if (!employeeData) {
+      const matchedEmp = await db.query.employees.findFirst({
+        where: eq(employees.workEmail, user.email.toLowerCase()),
+        with: {
+          department: true,
+          jobPosition: true,
+          workingSchedule: true,
+          manager: {
+            columns: { id: true, firstName: true, lastName: true, employeeCode: true, workEmail: true },
+          },
+        },
+      });
+      if (matchedEmp) {
+        employeeData = matchedEmp;
+        await db.update(employees).set({ userId: user.id }).where(eq(employees.id, matchedEmp.id));
+      }
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -542,7 +577,7 @@ export class AuthService {
       permissions: getRolePermissions(user.role),
       isActive: user.isActive,
       lastLoginAt: user.lastLoginAt,
-      employee: user.employee ?? null,
+      employee: employeeData ?? null,
     };
   }
 }

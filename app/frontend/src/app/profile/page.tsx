@@ -12,11 +12,13 @@ import {
   Briefcase,
   FileText,
   CalendarCheck,
+  Receipt,
   Eye,
   EyeOff,
   Mail,
   Lock,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -106,6 +108,15 @@ export default function ProfilePage() {
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<ContractsResponse>>('/contracts');
       return res.data;
+    },
+  });
+
+  // Fetch employee's own payslips
+  const { data: myPayslips = [] } = useQuery({
+    queryKey: ['my-payslips'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<any[]>>('/payslips/my');
+      return res.data || [];
     },
   });
 
@@ -202,7 +213,7 @@ export default function ProfilePage() {
 
         {/* Tabbed View */}
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid grid-cols-4 bg-zinc-900 border border-zinc-800 p-1 rounded-xl mb-6">
+          <TabsList className="grid grid-cols-5 bg-zinc-900 border border-zinc-800 p-1 rounded-xl mb-6">
             <TabsTrigger
               value="details"
               className="text-xs font-bold data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400"
@@ -230,6 +241,13 @@ export default function ProfilePage() {
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
               <span>Contracts</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="payslips"
+              className="text-xs font-bold data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400"
+            >
+              <Receipt className="h-3.5 w-3.5 mr-1.5" />
+              <span>My Payslips</span>
             </TabsTrigger>
           </TabsList>
 
@@ -495,6 +513,88 @@ export default function ProfilePage() {
                             <span className="inline-flex items-center rounded-full bg-emerald-950 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-800">
                               {con.status || 'ACTIVE'}
                             </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* TAB 5: My Payslips */}
+          <TabsContent value="payslips" className="space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-[#121215] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-indigo-400" />
+                    My Salary Statements & Payslips
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Official payslips generated and disbursed for your employment
+                  </p>
+                </div>
+                <Link
+                  href="/payslips"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors"
+                >
+                  <Eye className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>Full Payslip Portal</span>
+                </Link>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-zinc-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-zinc-800 bg-zinc-900/80 font-bold uppercase tracking-wider text-[10px] text-zinc-400">
+                    <tr>
+                      <th className="px-4 py-3">Pay Period</th>
+                      <th className="px-4 py-3">Slip #</th>
+                      <th className="px-4 py-3 text-right">Gross (₹)</th>
+                      <th className="px-4 py-3 text-right">Deductions (₹)</th>
+                      <th className="px-4 py-3 text-right">Net Pay (₹)</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60 bg-[#121215]">
+                    {myPayslips.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-xs text-zinc-400">
+                          No payslips generated yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      myPayslips.map((slip: any) => (
+                        <tr key={slip.id} className="hover:bg-zinc-900/60">
+                          <td className="px-4 py-3 font-semibold text-white">
+                            {slip.payrun?.name || `${slip.periodStart} - ${slip.periodEnd}`}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-zinc-400 text-[11px]">
+                            {slip.payslipNumber || slip.id.slice(0, 8).toUpperCase()}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                            ₹{Number(slip.grossAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-rose-400">
+                            -₹{Number(slip.deductionAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-white">
+                            ₹{Number(slip.netAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center rounded-full bg-emerald-950 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-800">
+                              {slip.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Link
+                              href="/payslips"
+                              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
+                            >
+                              View Slip →
+                            </Link>
                           </td>
                         </tr>
                       ))

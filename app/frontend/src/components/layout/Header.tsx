@@ -127,8 +127,8 @@ export function Header({
           <span>{user?.role || 'EMPLOYEE'}</span>
         </Link>
 
-        {/* Action Button */}
-        {onNewEmployeeClick && (
+        {/* Action Button - Only for HR / Admin */}
+        {onNewEmployeeClick && user?.role !== 'EMPLOYEE' && (
           <button
             onClick={onNewEmployeeClick}
             className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-black shadow-md hover:bg-zinc-200 transition-colors cursor-pointer"

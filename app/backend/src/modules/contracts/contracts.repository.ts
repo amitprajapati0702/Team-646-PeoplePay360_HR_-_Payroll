@@ -75,6 +75,24 @@ export class ContractsRepository {
       orderBy: [desc(contracts.startDate)],
     });
   }
+
+  async findByEmployee(employeeId: string) {
+    return await db.query.contracts.findMany({
+      where: eq(contracts.employeeId, employeeId),
+      with: {
+        salaryStructure: {
+          with: {
+            structureRules: {
+              with: { salaryRule: { with: { category: true } } },
+              orderBy: (sr, { asc }) => [asc(sr.sequenceOverride)],
+            },
+          },
+        },
+        workingSchedule: { with: { lines: true } },
+      },
+      orderBy: [desc(contracts.startDate)],
+    });
+  }
 }
 
 export const contractsRepository = new ContractsRepository();

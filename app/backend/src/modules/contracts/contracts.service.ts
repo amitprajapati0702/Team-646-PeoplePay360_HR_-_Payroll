@@ -137,7 +137,7 @@ export class ContractsService {
   async findActiveContractForPeriod(employeeId: string, periodStart: string, periodEnd: string) {
     const allContracts = await contractsRepository.findActiveByEmployee(employeeId);
 
-    const active = allContracts.find((c) => {
+    let active = allContracts.find((c) => {
       const contractStart = c.startDate;
       const contractEnd = c.endDate;
       if (contractEnd) {
@@ -145,6 +145,17 @@ export class ContractsService {
       }
       return contractStart <= periodEnd;
     });
+
+    if (!active && allContracts.length > 0) {
+      active = allContracts[0];
+    }
+
+    if (!active) {
+      const anyContracts = await contractsRepository.findByEmployee(employeeId);
+      if (anyContracts && anyContracts.length > 0) {
+        active = anyContracts[0];
+      }
+    }
 
     return active ?? null;
   }

@@ -15,8 +15,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function WorkingSchedulesPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'EMPLOYEE';
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -92,13 +95,15 @@ export default function WorkingSchedulesPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
-          >
-            <Plus className="h-4 w-4 text-white" />
-            <span>Create Schedule</span>
-          </button>
+          {!isEmployee && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
+            >
+              <Plus className="h-4 w-4 text-white" />
+              <span>Create Schedule</span>
+            </button>
+          )}
         </div>
 
         {/* Grid of Schedules */}

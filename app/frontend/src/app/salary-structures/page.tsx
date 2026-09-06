@@ -2,29 +2,68 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiResponse } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/layout/AppShell';
 import {
-  DollarSign,
   Plus,
-  Search,
-  Layers,
-  ChevronRight,
-  ShieldCheck,
-  CheckCircle2,
   Trash2,
-  Edit2,
-  ArrowUpRight,
-  Percent,
   Calculator,
-  ListOrdered,
   X,
   PlusCircle,
   Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+export interface SalaryRuleItem {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  categoryId?: string;
+  calculationType?: string;
+  computationType?: string;
+  percentage?: number | string | null;
+  baseRuleCode?: string | null;
+  percentageBaseRuleCode?: string | null;
+  amount?: number | string | null;
+  fixedAmount?: number | string | null;
+  sequence?: number;
+}
+
+export interface StructureRuleJoin {
+  id?: string;
+  sequence: number;
+  rule: SalaryRuleItem;
+}
+
+export interface SalaryStructureItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  rulesCount?: number;
+  structureRules?: StructureRuleJoin[];
+}
+
+export interface StructureFormData {
+  name: string;
+  code: string;
+  description: string;
+}
+
+export interface RuleFormData {
+  name: string;
+  code: string;
+  category: string;
+  calculationType: string;
+  percentage: number;
+  amount: number;
+  baseRuleCode: string;
+  sequence: number;
+  condition: string;
+}
 
 const CATEGORY_BADGES: Record<string, { bg: string; text: string; label: string }> = {
   BASIC: { bg: 'bg-zinc-900 border border-zinc-700 text-white', text: 'text-white', label: 'Basic Base' },
@@ -46,13 +85,13 @@ export default function SalaryStructuresPage() {
   const [isAddRuleModalOpen, setIsAddRuleModalOpen] = useState(false);
 
   // Form states
-  const [structureForm, setStructureForm] = useState({
+  const [structureForm, setStructureForm] = useState<StructureFormData>({
     name: '',
     code: '',
     description: '',
   });
 
-  const [ruleForm, setRuleForm] = useState({
+  const [ruleForm, setRuleForm] = useState<RuleFormData>({
     name: '',
     code: '',
     category: 'ALW',
@@ -65,47 +104,47 @@ export default function SalaryStructuresPage() {
   });
 
   // Fetch all structures
-  const { data: structuresData, isLoading: isStructuresLoading } = useQuery({
+  const { data: structuresData, isLoading: isStructuresLoading } = useQuery<SalaryStructureItem[]>({
     queryKey: ['salary-structures'],
     queryFn: async () => {
-      const res = await apiClient.get<any>('/salary-structures');
-      return res.data;
+      const res = await apiClient.get<ApiResponse<SalaryStructureItem[]> & { structures?: SalaryStructureItem[] }>('/salary-structures');
+      return res.data || res.structures || [];
     },
   });
 
-  const structures = Array.isArray(structuresData) ? structuresData : (structuresData?.structures || structuresData?.data || []);
-  const activeStructure = structures.find((s: any) => s.id === selectedStructureId) || structures[0];
+  const structures: SalaryStructureItem[] = structuresData || [];
+  const activeStructure = structures.find((s: SalaryStructureItem) => s.id === selectedStructureId) || structures[0];
 
   // Fetch detailed active structure with rules
-  const { data: structureDetailData } = useQuery({
+  const { data: structureDetailData } = useQuery<SalaryStructureItem | null>({
     queryKey: ['salary-structure-detail', activeStructure?.id],
     queryFn: async () => {
       if (!activeStructure?.id) return null;
-      const res = await apiClient.get<any>(`/salary-structures/${activeStructure.id}`);
-      return res?.data || res;
+      const res = await apiClient.get<ApiResponse<SalaryStructureItem>>(`/salary-structures/${activeStructure.id}`);
+      return res.data || null;
     },
     enabled: !!activeStructure?.id,
   });
 
   // Create Structure Mutation
-  const createStructureMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiClient.post<any>('/salary-structures', data);
+  const createStructureMutation = useMutation<SalaryStructureItem, Error, StructureFormData>({
+    mutationFn: async (data: StructureFormData) => {
+      const res = await apiClient.post<ApiResponse<SalaryStructureItem>>('/salary-structures', data);
       return res.data;
     },
-    onSuccess: (newStruct: any) => {
+    onSuccess: (newStruct: SalaryStructureItem) => {
       toast.success('Salary structure created successfully');
       setIsNewStructureModalOpen(false);
       setStructureForm({ name: '', code: '', description: '' });
       queryClient.invalidateQueries({ queryKey: ['salary-structures'] });
-      setSelectedStructureId(newStruct?.id || newStruct?.data?.id);
+      setSelectedStructureId(newStruct?.id);
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to create structure'),
+    onError: (err: Error) => toast.error(err?.message || 'Failed to create structure'),
   });
 
   // Add Rule Mutation
-  const addRuleMutation = useMutation({
-    mutationFn: async ({ structureId, data }: { structureId: string; data: any }) => {
+  const addRuleMutation = useMutation<SalaryRuleItem, Error, { structureId: string; data: RuleFormData }>({
+    mutationFn: async ({ structureId, data }: { structureId: string; data: RuleFormData }) => {
       const payload = {
         name: data.name,
         code: data.code,
@@ -121,14 +160,15 @@ export default function SalaryStructuresPage() {
         sequence: Number(data.sequence || 10),
         conditionExpression: data.condition || undefined,
       };
-      const createdRule = await apiClient.post<any>('/salary-structures/rules', payload);
-      const ruleId = createdRule?.data?.id || createdRule?.id;
+      const createdRule = await apiClient.post<ApiResponse<SalaryRuleItem>>('/salary-structures/rules', payload);
+      const ruleData = createdRule.data;
+      const ruleId = ruleData?.id;
       await apiClient.post(`/salary-structures/${structureId}/rules`, {
         salaryRuleId: ruleId,
         ruleId: ruleId,
         sequenceOverride: Number(data.sequence || 10),
       });
-      return createdRule;
+      return ruleData;
     },
     onSuccess: () => {
       toast.success('Rule attached to structure successfully');
@@ -146,24 +186,24 @@ export default function SalaryStructuresPage() {
       });
       queryClient.invalidateQueries({ queryKey: ['salary-structure-detail', activeStructure?.id] });
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to add rule'),
+    onError: (err: Error) => toast.error(err?.message || 'Failed to add rule'),
   });
 
   // Remove Rule Mutation
-  const removeRuleMutation = useMutation({
+  const removeRuleMutation = useMutation<unknown, Error, { structureId: string; ruleId: string }>({
     mutationFn: async ({ structureId, ruleId }: { structureId: string; ruleId: string }) => {
-      const res = await apiClient.delete(`/salary-structures/${structureId}/rules/${ruleId}`);
+      const res = await apiClient.delete<ApiResponse<unknown>>(`/salary-structures/${structureId}/rules/${ruleId}`);
       return res.data;
     },
     onSuccess: () => {
       toast.success('Rule removed from structure');
       queryClient.invalidateQueries({ queryKey: ['salary-structure-detail', activeStructure?.id] });
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to remove rule'),
+    onError: (err: Error) => toast.error(err?.message || 'Failed to remove rule'),
   });
 
   const structureDetail = structureDetailData || activeStructure;
-  const rules = structureDetail?.structureRules?.map((sr: any) => ({
+  const rules: SalaryRuleItem[] = structureDetail?.structureRules?.map((sr: StructureRuleJoin) => ({
     ...sr.rule,
     sequence: sr.sequence,
   })) || [];
@@ -195,7 +235,7 @@ export default function SalaryStructuresPage() {
             </p>
           </div>
 
-          {canEdit ? (
+          {canEdit && (
             <button
               onClick={() => setIsNewStructureModalOpen(true)}
               className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-zinc-800 hover:border-zinc-500 transition-all cursor-pointer"
@@ -203,11 +243,6 @@ export default function SalaryStructuresPage() {
               <Plus className="h-4 w-4 text-white" />
               <span>Create Structure</span>
             </button>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-500">
-              <ShieldCheck className="h-4 w-4 text-zinc-500" />
-              <span>Read-only access</span>
-            </div>
           )}
         </div>
 
@@ -224,7 +259,7 @@ export default function SalaryStructuresPage() {
                 <div className="py-8 text-center text-zinc-400">Loading structures...</div>
               ) : (
                 <div className="space-y-2">
-                  {structures.map((s: any) => {
+                  {structures.map((s: SalaryStructureItem) => {
                     const isSelected = (activeStructure?.id === s.id);
                     return (
                       <div
@@ -312,13 +347,13 @@ export default function SalaryStructuresPage() {
                         {rules.length === 0 ? (
                           <tr>
                             <td colSpan={6} className="py-8 text-center text-xs text-zinc-400">
-                              No rules attached to this structure yet. Click "Add Rule" to configure.
+                              No rules attached to this structure yet. Click &quot;Add Rule&quot; to configure.
                             </td>
                           </tr>
                         ) : (
                           rules
-                            .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                            .map((rule: any) => {
+                            .sort((a: SalaryRuleItem, b: SalaryRuleItem) => (a.sequence || 0) - (b.sequence || 0))
+                            .map((rule: SalaryRuleItem) => {
                               const badge = CATEGORY_BADGES[rule.category] || {
                                 bg: 'bg-zinc-900 text-zinc-300 border border-zinc-700',
                                 label: rule.category,
